@@ -39,3 +39,12 @@ def test_push_and_verification():
     assert c.post("/api/v1/push/devices",json={"token":"ExponentPushToken[test]"},headers=h).status_code==200
     assert c.post("/api/v1/profile/verification/confirm",json={"code":"000000"},headers=h).status_code==200
     assert c.get("/api/v1/profile/verification",headers=h).json["verified"] is True
+
+
+def test_advanced_routes_are_registered():
+    c=client();h=register_login(c,"routes@example.com")
+    assert c.get("/api/v1/teacher/dashboard",headers=h).status_code==200
+    assert c.get("/api/v1/academic-calendar",headers=h).status_code==200
+    assert c.get("/api/v1/library/my-loans",headers=h).status_code==200
+    assert c.get("/api/v1/search/all?q=test",headers=h).status_code==200
+    assert c.get("/api/v1/profile/verification",headers=h).status_code==200
