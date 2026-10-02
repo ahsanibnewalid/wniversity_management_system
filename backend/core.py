@@ -190,6 +190,16 @@ def create_app():
     @app.get("/api/v1/institutions")
     def institutions():
         return {"items":[{"id":i.id,"name":i.name,"slug":i.slug,"kind":i.kind,"address":i.address} for i in Institution.query.order_by(Institution.name).all()]}
+    @app.get("/api/v1/my/institutions")
+    def my_institutions():
+        u,e=auth()
+        if e:return e
+        ms=InstitutionMembership.query.filter_by(user_id=u.id,status="active").all()
+        items=[]
+        for m in ms:
+            i=db.session.get(Institution,m.institution_id)
+            if i: items.append({"id":i.id,"name":i.name,"slug":i.slug,"kind":i.kind,"address":i.address,"role":m.role,"student_id":m.student_id,"program":m.program})
+        return {"items":items}
     @app.post("/api/v1/institutions")
     def create_institution():
         u,e=auth()
