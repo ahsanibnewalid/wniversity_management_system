@@ -40,3 +40,7 @@ cd android
 gradlew assembleDebug
 
 The resulting debug APK is generated under android/app/build/outputs/apk/debug/.
+
+
+## Implementation status
+The full-platform implementation is being expanded across the API, web and mobile clients.
