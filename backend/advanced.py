@@ -487,6 +487,45 @@ def register(app):
     def semester_results(semester_id):
         return jsonify(items=[row(x) for x in Result.query.filter_by(student_id=request.current_user.id,semester_id=semester_id,published=True).all()])
 
+    @app.get("/api/v1/me/course-registration")
+    @login_required
+    def course_registration():
+        ms=InstitutionMembership.query.filter_by(user_id=request.current_user.id,status="active").all()
+        ids=[m.institution_id for m in ms]
+        deps=Department.query.filter(Department.institution_id.in_(ids)).all() if ids else []
+        dep_ids=[d.id for d in deps]
+        offerings=CourseOffering.query.join(Course,Course.id==CourseOffering.course_id).filter(Course.department_id.in_(dep_ids),CourseOffering.status=="open").all() if dep_ids else []
+        enrolled={x.offering_id for x in Enrollment.query.filter_by(student_id=request.current_user.id,status="enrolled").all()}
+        items=[]
+        for o in offerings:
+            c=db.session.get(Course,o.course_id)
+            items.append({**row(o),"course_code":c.code if c else "","course_title":c.title if c else "","credits":c.credits if c else 0,"enrolled":o.id in enrolled})
+        return jsonify(items=items)
+
+    @app.get("/api/v1/me/id-card.pdf")
+    @login_required
+    def id_card_pdf():
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.units import mm
+        buf=BytesIO();pdf=canvas.Canvas(buf,pagesize=A4);w,h=A4
+        p=request.current_user.profile
+        memberships=InstitutionMembership.query.filter_by(user_id=request.current_user.id,status="active").all()
+        inst=db.session.get(Institution,memberships[0].institution_id) if memberships else None
+        pdf.setTitle("CampusHub Student ID Card")
+        pdf.roundRect(40, h-220, w-80, 145, 10, stroke=1, fill=0)
+        pdf.setFont("Helvetica-Bold",18);pdf.drawString(60,h-100,"CAMPUSHUB")
+        pdf.setFont("Helvetica-Bold",13);pdf.drawString(60,h-125,"STUDENT ID CARD")
+        pdf.setFont("Helvetica",10)
+        pdf.drawString(60,h-148,"Name: "+str(p.full_name or ""))
+        pdf.drawString(60,h-165,"Student ID: "+str(p.student_id or ""))
+        pdf.drawString(60,h-182,"Program: "+str(p.program or ""))
+        pdf.drawString(60,h-199,"Department: "+str(p.department or ""))
+        if inst: pdf.drawString(60,h-216,"University: "+str(inst.name or ""))
+        pdf.setFont("Helvetica",8);pdf.drawString(60,h-235,"Issued digitally by CampusHub")
+        pdf.save();buf.seek(0)
+        return send_file(buf,mimetype="application/pdf",as_attachment=True,download_name="campushub-student-id-card.pdf")
+
     @app.get("/api/v1/transcript.pdf")
     @login_required
     def transcript_pdf():
