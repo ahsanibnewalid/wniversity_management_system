@@ -9,6 +9,7 @@ def create_app():
     comms.register_dashboard(app)
     platform.register(app)
     admin.register(app)
+    admin.admin_academic_routes(app)
     with app.app_context():
         db.create_all()
     return app
