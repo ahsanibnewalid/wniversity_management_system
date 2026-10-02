@@ -1,5 +1,5 @@
 from backend.core import create_app as _create_core_app, db
-from backend import academic, life, comms
+from backend import academic, life, comms, platform
 
 def create_app():
     app=_create_core_app()
@@ -7,6 +7,7 @@ def create_app():
     life.register(app)
     comms.register(app)
     comms.register_dashboard(app)
+    platform.register(app)
     with app.app_context():
         db.create_all()
     return app
