@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "a1ec18a3-5314-47ee-b7a8-82a9fd944f23"
+      }
+    },
+    "android": {
+      "package": "com.ahsanshuvo.campushubmobile"
+    }
+  }
+}
