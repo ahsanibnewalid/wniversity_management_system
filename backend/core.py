@@ -29,7 +29,6 @@ class UserProfile(db.Model):
     department=db.Column(db.String(160)); program=db.Column(db.String(160)); student_id=db.Column(db.String(100))
     is_complete=db.Column(db.Boolean,default=False,nullable=False)
 
-
 class AuthToken(db.Model):
     __tablename__="auth_tokens"
     id=db.Column(db.Integer,primary_key=True)
@@ -147,7 +146,7 @@ def create_app():
     def login():
         d=request.get_json(silent=True) or {}; u=User.query.filter_by(email=d.get("email","").strip().lower()).first()
         if not u or not check_password_hash(u.password_hash,d.get("password","")): return {"error":"invalid_credentials"},401
-         t=AuthToken(token=token_urlsafe(48),user_id=u.id); db.session.add(t); db.session.commit(); return {"access_token":t.token,"token_type":"Bearer","user_id":u.id,"profile_complete":u.profile.is_complete}
+        t=AuthToken(token=token_urlsafe(48),user_id=u.id); db.session.add(t); db.session.commit(); return {"access_token":t.token,"token_type":"Bearer","user_id":u.id,"profile_complete":u.profile.is_complete}
     @app.get("/api/v1/auth/me")
     def me():
         u,e=auth()
