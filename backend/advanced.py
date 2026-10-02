@@ -9,7 +9,7 @@ from backend.core import (
     Post, Comment, Reaction, Notification
 )
 from backend.api import login_required
-from backend.academic import Faculty, Program, Semester, Course, CourseOffering, Enrollment, Assignment, Submission, Result, Exam, TimetableEntry
+from backend.academic import Faculty, Program, Semester, Course, CourseOffering, Enrollment, Attendance, Assignment, Submission, Result, Exam, TimetableEntry
 from backend.life import Event, EventRegistration, Club, ClubMembership, Document, ServiceRequest, Fee, Payment
 
 def now():
