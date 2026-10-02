@@ -25,6 +25,8 @@ def register(app):
         from backend.core import User,Notification
         recipient=db.session.get(User,int(recipient_id))
         if not recipient:return jsonify(error="recipient_not_found"),404
+        viewer_ids=[m.institution_id for m in InstitutionMembership.query.filter_by(user_id=request.current_user.id,status="active").all()]
+        if not InstitutionMembership.query.filter(InstitutionMembership.user_id==recipient.id,InstitutionMembership.institution_id.in_(viewer_ids),InstitutionMembership.status=="active").first():return jsonify(error="recipient_not_found"),404
         x=Message(sender_id=request.current_user.id,recipient_id=recipient.id,body=body);db.session.add(x)
         db.session.add(Notification(user_id=recipient.id,kind="message",title="New message",body=f"You have a new message from user #{request.current_user.id}."))
         db.session.commit();return jsonify(data(x)),201
@@ -52,7 +54,7 @@ def register(app):
         user=db.session.get(User,user_id)
         if not user:return jsonify(error="user_not_found"),404
         p=user.profile
-        return jsonify(profile={c.name:getattr(p,c.name) for c in p.__table__.columns if c.name not in ("id","user_id")},user_id=user.id,email=user.email)
+        return jsonify(profile={c.name:getattr(p,c.name) for c in p.__table__.columns if c.name not in ("id","user_id")},user_id=user.id)
 
     @app.get("/api/v1/search")
     @login_required
