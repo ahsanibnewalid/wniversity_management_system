@@ -372,6 +372,17 @@ def admin_academic_routes(app):
         if not x:return jsonify(error="course_not_found"),404
         db.session.delete(x);db.session.commit();return jsonify(status="deleted")
 
+    @app.post("/api/v1/institutions/<int:iid>/admin/events")
+    @login_required
+    @require_permission("content.manage")
+    def ce(iid):
+        d=request.get_json() or {}
+        from datetime import datetime
+        def dt(v): return datetime.fromisoformat(v.replace("Z","+00:00")) if v else None
+        x=Event(institution_id=iid,organizer_id=request.current_user.id,title=d.get("title",""),description=d.get("description",""),starts_at=dt(d.get("starts_at")),ends_at=dt(d.get("ends_at")),location=d.get("location",""),event_type=d.get("event_type","event"),capacity=d.get("capacity"))
+        if not x.title:return jsonify(error="title_required"),400
+        db.session.add(x);db.session.commit();return jsonify(data=row(x)),201
+
     @app.get("/api/v1/institutions/<int:iid>/admin/events")
     @login_required
     @require_permission("content.manage")
@@ -446,4 +457,3 @@ def admin_academic_routes(app):
             if k in d:setattr(x,k,d[k])
         db.session.commit();return jsonify(data=row(x))
 
-admin_academic_routes(app)
