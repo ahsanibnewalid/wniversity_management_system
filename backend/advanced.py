@@ -10,7 +10,7 @@ from backend.core import (
 )
 from backend.api import login_required
 from backend.academic import Faculty, Program, Semester, Course, CourseOffering, Enrollment, Attendance, Assignment, Submission, Result, Exam, TimetableEntry
-from backend.life import Event, EventRegistration, Club, ClubMembership, Document, ServiceRequest, Fee, Payment
+from backend.life import Event, EventRegistration, Club, ClubMembership, Document, ServiceRequest, Fee
 
 def now():
     return datetime.now(timezone.utc)
