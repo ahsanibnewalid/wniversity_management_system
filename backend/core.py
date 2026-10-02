@@ -222,6 +222,9 @@ def create_app():
         db.session.add(r); db.session.commit(); return {"request_id":r.id,"status":"pending"},201
     @app.get("/api/v1/institutions/<int:iid>/groups")
     def institution_groups(iid):
+        u,e=auth()
+        if e:return e
+        if not InstitutionMembership.query.filter_by(institution_id=iid,user_id=u.id,status="active").first():return {"error":"institution_membership_required"},403
         gs=Group.query.filter_by(institution_id=iid).order_by(Group.name).all()
         return {"items":[{"id":g.id,"name":g.name,"type":g.group_type,"department_id":g.department_id,"session_id":g.session_id,"academic_year_id":g.academic_year_id} for g in gs]}
     @app.post("/api/v1/groups")
