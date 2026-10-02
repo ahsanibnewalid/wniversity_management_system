@@ -74,7 +74,16 @@ def register(app):
         x=Enrollment(offering_id=oid,student_id=sid);db.session.add(x);db.session.commit();return jsonify(data(x)),201
     @app.get("/api/v1/me/enrollments")
     @login_required
-    def my_enrollments():return jsonify(items=[data(x) for x in Enrollment.query.filter_by(student_id=request.current_user.id,status="enrolled").all()])
+    def my_enrollments():
+        items=[]
+        for x in Enrollment.query.filter_by(student_id=request.current_user.id,status="enrolled").all():
+            item=data(x); o=db.session.get(CourseOffering,x.offering_id); course=db.session.get(Course,o.course_id) if o else None
+            if o:
+                item.update({"section":o.section,"room":o.room,"teacher_id":o.teacher_id,"semester_id":o.semester_id})
+            if course:
+                item.update({"course_id":course.id,"course_code":course.code,"course_title":course.title,"credits":course.credits})
+            items.append(item)
+        return jsonify(items=items)
     @app.post("/api/v1/offerings/<int:oid>/attendance")
     @login_required
     def save_attendance(oid):
@@ -152,4 +161,10 @@ def register(app):
     @login_required
     def timetable():
         ids=[x.offering_id for x in Enrollment.query.filter_by(student_id=request.current_user.id,status="enrolled").all()]
-        return jsonify(items=[data(x) for x in TimetableEntry.query.filter(TimetableEntry.offering_id.in_(ids)).order_by(TimetableEntry.weekday,TimetableEntry.start_time).all()] if ids else [])
+        entries=TimetableEntry.query.filter(TimetableEntry.offering_id.in_(ids)).order_by(TimetableEntry.weekday,TimetableEntry.start_time).all() if ids else []
+        items=[]
+        for x in entries:
+            item=data(x); o=db.session.get(CourseOffering,x.offering_id); course=db.session.get(Course,o.course_id) if o else None
+            item["course_code"]=course.code if course else ""; item["course_title"]=course.title if course else ""; item["section"]=o.section if o else ""; item["teacher_id"]=o.teacher_id if o else None
+            items.append(item)
+        return jsonify(items=items)
