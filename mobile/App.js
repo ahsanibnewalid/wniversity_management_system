@@ -57,7 +57,7 @@ export default function App(){
   <ScrollView horizontal style={s.tabs}>{userTabs.map(x=><TouchableOpacity key={x} style={s.tab} onPress={()=>load(x)}><Text>{x}</Text></TouchableOpacity>)}<TouchableOpacity style={s.tab} onPress={()=>load("Admin")}><Text>University Admin</Text></TouchableOpacity></ScrollView>
   {adminTabs.some(x=>x[0]===screen)&&<ScrollView horizontal style={s.adminTabs}>{adminTabs.map(([label,key])=><TouchableOpacity key={label} style={s.tab} onPress={()=>load(label,institution?.id)}><Text>{label}</Text></TouchableOpacity>)}</ScrollView>}
   {admins.length>1&&screen!=="Home"&&<ScrollView horizontal style={s.adminTabs}>{admins.map(a=><TouchableOpacity key={a.id} style={s.tab} onPress={()=>{setInstitution(a);setScreen("Overview");loadAdmin("overview",a.id)}}><Text>{a.name}</Text></TouchableOpacity>)}</ScrollView>}
- </SafeAreaView>
+ </SafeAreaView></>
 }
 function AdminRow({x,screen,iid,mutate,reload}){
  const[editing,setEditing]=useState(false),[name,setName]=useState(x.name||x.title||x.full_name||""),[status,setStatus]=useState(x.status||"");
