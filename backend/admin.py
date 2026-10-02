@@ -77,9 +77,15 @@ def register(app):
     @require_permission("institution.manage")
     def edit_institution(iid):
         i=db.get_or_404(Institution,iid); d=request.get_json() or {}
+        if "name" in d and not str(d.get("name") or "").strip():
+            return jsonify(error="name_required"),400
+        if "slug" in d and not str(d.get("slug") or "").strip():
+            return jsonify(error="slug_required"),400
         for k in ("name","slug","kind","address","website","description"):
-            if k in d and d[k] is not None: setattr(i,k,str(d[k]).strip())
-        db.session.commit(); return jsonify(data=row(i))
+            if k in d and d[k] is not None:
+                setattr(i,k,str(d[k]).strip())
+        db.session.commit()
+        return jsonify(data=row(i))
 
     @app.get("/api/v1/institutions/<int:iid>/admin/members")
     @login_required
