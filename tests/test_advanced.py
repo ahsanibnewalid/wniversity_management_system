@@ -50,3 +50,8 @@ def test_advanced_routes_are_registered():
     assert c.get("/api/v1/profile/verification",headers=h).status_code==200
     assert c.get("/api/v1/me/course-registration",headers=h).status_code==200
     assert c.get("/api/v1/me/id-card.pdf",headers=h).status_code==200
+
+
+def test_payment_processing_is_not_exposed():
+    c=client();h=register_login(c,"nopay@example.com")
+    assert c.post("/api/v1/fees/1/pay",headers=h).status_code==404
