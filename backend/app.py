@@ -6,6 +6,7 @@ def create_app():
     academic.register(app)
     life.register(app)
     comms.register(app)
+    comms.register_dashboard(app)
     with app.app_context():
         db.create_all()
     return app
