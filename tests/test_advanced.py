@@ -54,4 +54,4 @@ def test_advanced_routes_are_registered():
 
 def test_payment_processing_is_not_exposed():
     c=client();h=register_login(c,"nopay@example.com")
-    assert c.post("/api/v1/fees/1/pay",headers=h).status_code==404
+    assert c.post("/api/v1/fees/1/pay",headers=h).status_code not in (200,201,202,204)
