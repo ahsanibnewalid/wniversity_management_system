@@ -27,6 +27,9 @@ def membership(iid, uid=None):
 
 def has_permission(iid, permission):
     m = membership(iid)
+    institution = db.session.get(Institution, iid)
+    if institution and institution.owner_id == request.current_user.id:
+        return permission in ROLE_PERMISSIONS["institution_owner"]
     return bool(m and permission in ROLE_PERMISSIONS.get(m.role, set()))
 
 def require_permission(permission):
