@@ -442,6 +442,11 @@ def register(app):
         if not membership(iid,request.current_user.id):return jsonify(error="forbidden"),403
         return jsonify(items=[row(x) for x in LibraryItem.query.filter_by(institution_id=iid).all()])
 
+    @app.get("/api/v1/library/my-loans")
+    @login_required
+    def my_library_loans():
+        return jsonify(items=[row(x) for x in LibraryLoan.query.filter_by(user_id=request.current_user.id).order_by(LibraryLoan.borrowed_at.desc()).all()])
+
     @app.post("/api/v1/library/items/<int:item_id>/borrow")
     @login_required
     def borrow_library(item_id):
