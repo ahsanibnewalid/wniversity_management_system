@@ -236,7 +236,7 @@ def create_app():
         else:db.session.add(Reaction(post_id=pid,user_id=u.id,reaction=d.get("reaction","like")))
         db.session.commit();return {"status":"ok"}
     @app.get("/api/v1/notifications")
-    def notifications():
+    def core_notifications():
         u,e=auth()
         if e:return e
         ns=Notification.query.filter_by(user_id=u.id).order_by(Notification.created_at.desc()).limit(50).all()
