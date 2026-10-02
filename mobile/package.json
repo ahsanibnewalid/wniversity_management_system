@@ -1,0 +1,1 @@
+{"name":"campushub-mobile","version":"1.0.0","private":true,"scripts":{"start":"expo start","android":"expo run:android","ios":"expo run:ios"},"dependencies":{"expo":"latest","react":"latest","react-native":"latest"}}
