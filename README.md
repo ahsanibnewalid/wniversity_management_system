@@ -1,12 +1,42 @@
-# University Management System
+# CampusHub
 
-A clean Flask and SQLAlchemy foundation for account registration, institutions, role assignments, departments, courses, enrollment, notices, and health checks.
+API-first University Management + Community platform.
 
-## Local setup
-Use Python 3.11+. Run `python -m venv .venv`, activate it, then `pip install -r requirements.txt` and `python app.py`. Open http://127.0.0.1:5000. Set a strong `SECRET_KEY` for deployments.
+## Architecture
+- backend/ — Flask API, database models, routes and services
+- web/ — web client foundation
+- mobile/ — React Native/Expo client foundation
+- tests/ — automated tests
+- PostgreSQL on Render; SQLite for local development
+
+## Product workflow
+Register → complete profile → apply to institution with student ID, department, program, session and academic year → institution admin reviews → approved membership → institution, department, session and academic-year communities.
+
+## Community hierarchy
+Institution → Department → Session → Academic Year.
+
+Groups support posts, questions, comments and reactions. The permission model is designed for institution owners/admins/principals, department chairmen/admins, media managers and class representatives.
+
+## Local
+python -m venv .venv
+pip install -r requirements.txt
+python -c "from backend.app import app; app.run(debug=True)"
+
+Health: http://127.0.0.1:5000/healthz
 
 ## Render
-Create a Blueprint from `render.yaml`. It provisions a web service and PostgreSQL database. Keep all secrets out of Git.
+Build: pip install -r requirements.txt
+Start: gunicorn "backend.app:create_app()" --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120
+Health check: /healthz
 
-## Important
-This is a minimal baseline, not a full enterprise SIS. Attendance, grades, admissions, password reset, email verification, uploads, and formal schema migrations are not included yet. The app initializes tables but does not migrate the old schema. Back up old data before switching. The clean rebuild removes legacy files from the new branch's current tree; Git history remains available.
+## Mobile
+cd mobile
+npm install
+npx expo start
+
+When native Android/iOS projects are needed:
+npx expo prebuild
+cd android
+gradlew assembleDebug
+
+The resulting debug APK is generated under android/app/build/outputs/apk/debug/.
