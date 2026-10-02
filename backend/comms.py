@@ -1,6 +1,6 @@
 from datetime import datetime,timezone
 from flask import request,jsonify
-from backend.core import db,UserProfile,Institution,Group
+from backend.core import db,UserProfile,Institution,Group,User,InstitutionMembership
 from backend.api import login_required
 class Message(db.Model):
     id=db.Column(db.Integer,primary_key=True);sender_id=db.Column(db.Integer,db.ForeignKey("users.id"),nullable=False);recipient_id=db.Column(db.Integer,db.ForeignKey("users.id"),nullable=False);body=db.Column(db.Text,nullable=False);read_at=db.Column(db.DateTime(timezone=True));created_at=db.Column(db.DateTime(timezone=True),default=lambda:datetime.now(timezone.utc))
@@ -41,6 +41,19 @@ def register(app):
     def get_profile():
         p=request.current_user.profile
         return jsonify(profile={c.name:getattr(p,c.name) for c in p.__table__.columns if c.name not in ("id","user_id")})
+    @app.get("/api/v1/users/<int:user_id>/profile")
+    @login_required
+    def user_profile(user_id):
+        if user_id == request.current_user.id:
+            return jsonify(profile={c.name:getattr(request.current_user.profile,c.name) for c in request.current_user.profile.__table__.columns if c.name not in ("id","user_id")})
+        viewer_ids=[m.institution_id for m in InstitutionMembership.query.filter_by(user_id=request.current_user.id,status="active").all()]
+        shared=InstitutionMembership.query.filter(InstitutionMembership.user_id==user_id,InstitutionMembership.institution_id.in_(viewer_ids),InstitutionMembership.status=="active").first()
+        if not shared:return jsonify(error="user_not_found"),404
+        user=db.session.get(User,user_id)
+        if not user:return jsonify(error="user_not_found"),404
+        p=user.profile
+        return jsonify(profile={c.name:getattr(p,c.name) for c in p.__table__.columns if c.name not in ("id","user_id")},user_id=user.id,email=user.email)
+
     @app.get("/api/v1/search")
     @login_required
     def search():
