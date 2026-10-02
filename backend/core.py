@@ -1,7 +1,7 @@
 import os
 from datetime import datetime, timezone
 from secrets import token_urlsafe
-from flask import Flask, request, send_from_directory
+from flask import Flask, request, send_from_directory, Response, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -132,14 +132,40 @@ def create_app():
         u=user()
         return (u,None) if u else (None,({"error":"authentication_required"},401))
     WEB_DIR=os.path.abspath(os.path.join(app.root_path,"..","web"))
+    MIME_TYPES={
+        ".html":"text/html; charset=utf-8",
+        ".js":"application/javascript; charset=utf-8",
+        ".css":"text/css; charset=utf-8",
+        ".json":"application/json; charset=utf-8",
+        ".svg":"image/svg+xml",
+        ".ico":"image/x-icon",
+        ".png":"image/png",
+        ".jpg":"image/jpeg",
+        ".jpeg":"image/jpeg",
+        ".webp":"image/webp",
+    }
+    def web_file(filename):
+        path=os.path.abspath(os.path.join(WEB_DIR,filename))
+        if not path.startswith(WEB_DIR+os.sep) or not os.path.isfile(path):
+            abort(404)
+        ext=os.path.splitext(path)[1].lower()
+        with open(path,"rb") as fh:
+            payload=fh.read()
+        return Response(payload,status=200,mimetype=MIME_TYPES.get(ext,"application/octet-stream"))
+
     @app.get("/")
     def web_index():
-        return send_from_directory(WEB_DIR,"index.html")
+        return web_file("index.html")
+
+    @app.get("/favicon.ico")
+    def web_favicon():
+        return web_file("favicon.ico") if os.path.isfile(os.path.join(WEB_DIR,"favicon.ico")) else ("",204)
+
     @app.get("/<path:asset>")
     def web_assets(asset):
         if asset.startswith("api/"):
             return {"error":"not_found"},404
-        return send_from_directory(WEB_DIR,asset)
+        return web_file(asset)
     @app.get("/healthz")
     def healthz():
         try: db.session.execute(db.text("SELECT 1")); return {"status":"ok","database":"ok"}
