@@ -1,1 +1,1 @@
-{"name":"campushub-mobile","version":"1.0.0","private":true,"scripts":{"start":"expo start","android":"expo run:android","ios":"expo run:ios"},"dependencies":{"@react-native-async-storage/async-storage":"2.2.0","expo":"latest","react":"19.2.3","react-native":"0.86.3"}}
+{"name":"campushub-mobile","version":"1.0.0","private":true,"scripts":{"start":"expo start","android":"expo run:android","ios":"expo run:ios"},"dependencies":{"@react-native-async-storage/async-storage":"2.2.0","expo":"57.0.26","react":"19.2.3","react-native":"0.86.3"}}
