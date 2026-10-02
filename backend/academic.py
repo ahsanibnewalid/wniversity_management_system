@@ -128,7 +128,9 @@ def register(app):
     @app.post("/api/v1/students/<int:sid>/results")
     @login_required
     def add_result(sid):
-        d=request.get_json() or {};x=Result(student_id=sid,course_id=d["course_id"],semester_id=d.get("semester_id"),grade=d["grade"],grade_point=d.get("grade_point",0),credits=d.get("credits",0),published=d.get("published",False));db.session.add(x);db.session.commit();return jsonify(data(x)),201
+        d=request.get_json() or {}; course=db.session.get(Course,d.get("course_id")); dep=db.session.get(Department,course.department_id) if course else None
+        if not dep or not institution_manager(dep.institution_id):return jsonify(error="forbidden"),403
+        x=Result(student_id=sid,course_id=d["course_id"],semester_id=d.get("semester_id"),grade=d["grade"],grade_point=d.get("grade_point",0),credits=d.get("credits",0),published=d.get("published",False));db.session.add(x);db.session.commit();return jsonify(data(x)),201
     @app.post("/api/v1/offerings/<int:oid>/timetable")
     @login_required
     def add_timetable(oid):
