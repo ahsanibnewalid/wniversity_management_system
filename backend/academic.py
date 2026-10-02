@@ -101,9 +101,14 @@ def register(app):
         o=db.get_or_404(CourseOffering,oid)
         if o.teacher_id!=request.current_user.id:return jsonify(error="forbidden"),403
         d=request.get_json() or {};day=datetime.fromisoformat(d.get("date",datetime.now().date().isoformat())).date()
+        allowed={x.student_id for x in Enrollment.query.filter_by(offering_id=oid,status="enrolled").all()}
         for row in d.get("records",[]):
-            x=Attendance.query.filter_by(offering_id=oid,student_id=row["student_id"],date=day).first() or Attendance(offering_id=oid,student_id=row["student_id"],date=day)
-            x.status=row.get("status","present");x.note=row.get("note","");db.session.add(x)
+            sid=int(row["student_id"])
+            if sid not in allowed:return jsonify(error="student_not_enrolled"),400
+            status=str(row.get("status","present"))
+            if status not in {"present","absent","late","excused"}:return jsonify(error="invalid_attendance_status"),400
+            x=Attendance.query.filter_by(offering_id=oid,student_id=sid,date=day).first() or Attendance(offering_id=oid,student_id=sid,date=day)
+            x.status=status;x.note=row.get("note","");db.session.add(x)
         db.session.commit();return jsonify(status="saved")
     @app.get("/api/v1/me/attendance")
     @login_required
@@ -113,7 +118,12 @@ def register(app):
     def add_assignment(oid):
         o=db.get_or_404(CourseOffering,oid)
         if o.teacher_id!=request.current_user.id:return jsonify(error="forbidden"),403
-        d=request.get_json() or {};due=datetime.fromisoformat(d["due_at"].replace("Z","+00:00")) if d.get("due_at") else None;x=Assignment(offering_id=oid,title=d.get("title",""),description=d.get("description",""),due_at=due,max_score=d.get("max_score",100),attachment_url=d.get("attachment_url",""));db.session.add(x);db.session.commit();return jsonify(data(x)),201
+        d=request.get_json() or {};title=str(d.get("title","")).strip()
+        if not title:return jsonify(error="title_required"),400
+        max_score=float(d.get("max_score",100))
+        if max_score<=0:return jsonify(error="invalid_max_score"),400
+        due=datetime.fromisoformat(d["due_at"].replace("Z","+00:00")) if d.get("due_at") else None
+        x=Assignment(offering_id=oid,title=title,description=d.get("description",""),due_at=due,max_score=max_score,attachment_url=d.get("attachment_url",""));db.session.add(x);db.session.commit();return jsonify(data(x)),201
     @app.get("/api/v1/offerings/<int:oid>/assignments")
     @login_required
     def assignments(oid):return jsonify(items=[data(x) for x in Assignment.query.filter_by(offering_id=oid).all()])
