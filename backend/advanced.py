@@ -337,11 +337,21 @@ def register(app):
         q=str(request.args.get("q","")).strip()
         if len(q)<2:return jsonify(items=[])
         like="%"+q+"%"
+        memberships=InstitutionMembership.query.filter_by(user_id=request.current_user.id,status="active").all()
+        ids=[m.institution_id for m in memberships]
+        if not ids:return jsonify(items=[])
+        dep_ids=[d.id for d in Department.query.filter(Department.institution_id.in_(ids)).all()]
         items=[]
-        for x in UserProfile.query.filter((UserProfile.full_name.ilike(like))|(UserProfile.username.ilike(like))).limit(20):items.append({"type":"student_or_user","id":x.user_id,"title":x.full_name,"subtitle":x.username})
-        for x in Course.query.filter((Course.title.ilike(like))|(Course.code.ilike(like))).limit(20):items.append({"type":"course","id":x.id,"title":x.title,"subtitle":x.code})
-        for x in Department.query.filter((Department.name.ilike(like))|(Department.code.ilike(like))).limit(20):items.append({"type":"department","id":x.id,"title":x.name,"subtitle":x.code})
-        for x in Institution.query.filter(Institution.name.ilike(like)).limit(20):items.append({"type":"institution","id":x.id,"title":x.name,"subtitle":x.slug})
+        user_ids=[m.user_id for m in InstitutionMembership.query.filter(InstitutionMembership.institution_id.in_(ids),InstitutionMembership.status=="active").all()]
+        if user_ids:
+            for x in UserProfile.query.filter(UserProfile.user_id.in_(user_ids),((UserProfile.full_name.ilike(like))|(UserProfile.username.ilike(like)))).limit(20):
+                items.append({"type":"student_or_user","id":x.user_id,"title":x.full_name,"subtitle":x.username})
+        for x in Course.query.filter(Course.department_id.in_(dep_ids),((Course.title.ilike(like))|(Course.code.ilike(like)))).limit(20) if dep_ids else []:
+            items.append({"type":"course","id":x.id,"title":x.title,"subtitle":x.code})
+        for x in Department.query.filter(Department.id.in_(dep_ids),((Department.name.ilike(like))|(Department.code.ilike(like)))).limit(20) if dep_ids else []:
+            items.append({"type":"department","id":x.id,"title":x.name,"subtitle":x.code})
+        for x in Institution.query.filter(Institution.id.in_(ids),Institution.name.ilike(like)).limit(20):
+            items.append({"type":"institution","id":x.id,"title":x.name,"subtitle":x.slug})
         return jsonify(items=items[:80])
 
     @app.get("/api/v1/events/<int:eid>/ticket")
