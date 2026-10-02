@@ -1,5 +1,5 @@
 from backend.core import create_app as _create_core_app, db
-from backend import academic, life, comms, platform, admin, advanced
+from backend import academic, life, comms, platform, admin, advanced, extra
 
 def create_app():
     app=_create_core_app()
@@ -11,6 +11,7 @@ def create_app():
     admin.register(app)
     admin.admin_academic_routes(app)
     advanced.register(app)
+    extra.register(app)
     with app.app_context():
         db.create_all()
     return app
