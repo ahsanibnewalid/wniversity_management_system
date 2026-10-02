@@ -1,0 +1,1 @@
+import React from "react";import{SafeAreaView,Text}from"react-native";export default function App(){return <SafeAreaView><Text>CampusHub Mobile</Text><Text>Configure the deployed API base URL before release.</Text></SafeAreaView>}
