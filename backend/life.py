@@ -80,7 +80,11 @@ def register(app):
     @app.post("/api/v1/service-requests")
     @login_required
     def add_service():
-        d=request.get_json() or {};x=ServiceRequest(user_id=request.current_user.id,institution_id=d.get("institution_id"),request_type=d.get("request_type","general"),details=d.get("details",""));db.session.add(x);db.session.commit();return jsonify(data(x)),201
+        d=request.get_json() or {};iid=d.get("institution_id")
+        if iid and not InstitutionMembership.query.filter_by(institution_id=iid,user_id=request.current_user.id,status="active").first():return jsonify(error="membership_required"),403
+        x=ServiceRequest(user_id=request.current_user.id,institution_id=iid,request_type=str(d.get("request_type","general")).strip(),details=d.get("details",""))
+        if not x.request_type:return jsonify(error="request_type_required"),400
+        db.session.add(x);db.session.commit();return jsonify(data(x)),201
     @app.get("/api/v1/fees")
     @login_required
     def fees():return jsonify(items=[data(x) for x in Fee.query.filter_by(student_id=request.current_user.id).all()])
