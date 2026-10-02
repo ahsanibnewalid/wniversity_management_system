@@ -1,0 +1,1 @@
+The mobile client uses the same versioned Flask API. Run `npx expo prebuild` when native Android/iOS folders are needed.
