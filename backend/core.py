@@ -29,6 +29,15 @@ class UserProfile(db.Model):
     department=db.Column(db.String(160)); program=db.Column(db.String(160)); student_id=db.Column(db.String(100))
     is_complete=db.Column(db.Boolean,default=False,nullable=False)
 
+
+class AuthToken(db.Model):
+    __tablename__="auth_tokens"
+    id=db.Column(db.Integer,primary_key=True)
+    token=db.Column(db.String(128),unique=True,nullable=False,index=True)
+    user_id=db.Column(db.Integer,db.ForeignKey("users.id",ondelete="CASCADE"),nullable=False,index=True)
+    created_at=db.Column(db.DateTime(timezone=True),default=now,nullable=False)
+    revoked=db.Column(db.Boolean,default=False,nullable=False)
+
 class Institution(db.Model):
     __tablename__="institutions"
     id=db.Column(db.Integer,primary_key=True); name=db.Column(db.String(200),unique=True,nullable=False)
@@ -118,8 +127,8 @@ def create_app():
     db.init_app(app); CORS(app,resources={r"/api/*":{"origins":os.getenv("CORS_ORIGINS","*")}})
     with app.app_context(): db.create_all()
     def user():
-        h=request.headers.get("Authorization",""); t=h[7:] if h.startswith("Bearer ") else ""; uid=TOKENS.get(t)
-        return db.session.get(User,uid) if uid else None
+        h=request.headers.get("Authorization",""); t=h[7:] if h.startswith("Bearer ") else ""; row=AuthToken.query.filter_by(token=t,revoked=False).first()
+        return db.session.get(User,row.user_id) if row else None
     def auth():
         u=user()
         return (u,None) if u else (None,({"error":"authentication_required"},401))
@@ -138,7 +147,7 @@ def create_app():
     def login():
         d=request.get_json(silent=True) or {}; u=User.query.filter_by(email=d.get("email","").strip().lower()).first()
         if not u or not check_password_hash(u.password_hash,d.get("password","")): return {"error":"invalid_credentials"},401
-        t=token_urlsafe(48); TOKENS[t]=u.id; return {"access_token":t,"token_type":"Bearer","user_id":u.id,"profile_complete":u.profile.is_complete}
+         t=AuthToken(token=token_urlsafe(48),user_id=u.id); db.session.add(t); db.session.commit(); return {"access_token":t.token,"token_type":"Bearer","user_id":u.id,"profile_complete":u.profile.is_complete}
     @app.get("/api/v1/auth/me")
     def me():
         u,e=auth()
@@ -224,6 +233,66 @@ def create_app():
         if e:return e
         ns=Notification.query.filter_by(user_id=u.id).order_by(Notification.created_at.desc()).limit(50).all()
         return {"items":[{"id":n.id,"kind":n.kind,"title":n.title,"body":n.body,"read":n.is_read,"created_at":n.created_at.isoformat()} for n in ns]}
+
+    @app.post("/api/v1/auth/logout")
+    def logout():
+        u,e=auth()
+        if e:return e
+        h=request.headers.get("Authorization",""); t=h[7:] if h.startswith("Bearer ") else ""
+        row=AuthToken.query.filter_by(token=t,user_id=u.id).first()
+        if row: row.revoked=True; db.session.commit()
+        return {"status":"logged_out"}
+    @app.put("/api/v1/profile")
+    def update_profile():
+        u,e=auth()
+        if e:return e
+        d=request.get_json(silent=True) or {}; p=u.profile
+        for k in ("full_name","phone","address","bio","profile_photo_url","institution_text","department","program","student_id"):
+            if k in d: setattr(p,k,d[k])
+        if "username" in d:
+            name=str(d["username"]).strip().lower()
+            if name and name!=p.username and UserProfile.query.filter_by(username=name).first(): return {"error":"username_exists"},409
+            if name:p.username=name
+        p.is_complete=all(getattr(p,k) for k in ("full_name","username","phone","address","institution_text","department","program","student_id"))
+        db.session.commit(); return {"profile_complete":p.is_complete}
+    @app.get("/api/v1/institutions/<int:iid>/departments")
+    def departments(iid):
+        return {"items":[{"id":d.id,"name":d.name,"code":d.code} for d in Department.query.filter_by(institution_id=iid).order_by(Department.name).all()]}
+    @app.post("/api/v1/institutions/<int:iid>/departments")
+    def create_department(iid):
+        u,e=auth()
+        if e:return e
+        m=InstitutionMembership.query.filter_by(institution_id=iid,user_id=u.id,status="active").first()
+        if not m or m.role not in MANAGERS:return {"error":"forbidden"},403
+        d=request.get_json(silent=True) or {}
+        if not d.get("name") or not d.get("code"):return {"error":"name_and_code_required"},400
+        dep=Department(institution_id=iid,name=d["name"].strip(),code=d["code"].strip().upper()); db.session.add(dep); db.session.commit(); return {"id":dep.id},201
+    @app.get("/api/v1/institutions/<int:iid>/requests")
+    def list_join_requests(iid):
+        u,e=auth()
+        if e:return e
+        m=InstitutionMembership.query.filter_by(institution_id=iid,user_id=u.id,status="active").first()
+        if not m or m.role not in MANAGERS:return {"error":"forbidden"},403
+        rs=JoinRequest.query.filter_by(institution_id=iid).order_by(JoinRequest.created_at.desc()).all()
+        return {"items":[{"id":r.id,"user_id":r.user_id,"department_id":r.department_id,"student_id":r.student_id,"program":r.program,"session":r.session,"academic_year":r.academic_year,"status":r.status,"note":r.note} for r in rs]}
+    @app.post("/api/v1/join-requests/<int:rid>/review")
+    def review_join_request(rid):
+        u,e=auth()
+        if e:return e
+        r=db.session.get(JoinRequest,rid)
+        if not r:return {"error":"request_not_found"},404
+        m=InstitutionMembership.query.filter_by(institution_id=r.institution_id,user_id=u.id,status="active").first()
+        if not m or m.role not in MANAGERS:return {"error":"forbidden"},403
+        d=request.get_json(silent=True) or {}; decision=d.get("decision")
+        if decision not in ("approve","reject"):return {"error":"decision_required"},400
+        if r.status!="pending":return {"error":"already_reviewed"},409
+        r.status="approved" if decision=="approve" else "rejected"; r.reviewed_by=u.id
+        if decision=="approve":
+            db.session.add(InstitutionMembership(institution_id=r.institution_id,user_id=r.user_id,role="student",status="active",student_id=r.student_id,program=r.program))
+            for g in Group.query.filter_by(institution_id=r.institution_id).all():
+                db.session.add(GroupMembership(group_id=g.id,user_id=r.user_id,role="member",status="active"))
+        db.session.commit(); return {"status":r.status}
+
     return app
 
 app=create_app()
