@@ -74,6 +74,13 @@ def register(app):
     def enroll(oid):
         d=request.get_json() or {};sid=int(d.get("student_id",request.current_user.id))
         if sid!=request.current_user.id:return jsonify(error="forbidden"),403
+        o=db.session.get(CourseOffering,oid)
+        if not o:return jsonify(error="offering_not_found"),404
+        course=db.session.get(Course,o.course_id);dep=db.session.get(Department,course.department_id) if course else None
+        if not dep or not InstitutionMembership.query.filter_by(institution_id=dep.institution_id,user_id=sid,status="active").first():
+            return jsonify(error="institution_membership_required"),403
+        if o.status!="open":return jsonify(error="offering_closed"),409
+        if o.capacity and Enrollment.query.filter_by(offering_id=oid,status="enrolled").count()>=o.capacity:return jsonify(error="offering_full"),409
         if Enrollment.query.filter_by(offering_id=oid,student_id=sid).first():return jsonify(error="already_enrolled"),409
         x=Enrollment(offering_id=oid,student_id=sid);db.session.add(x);db.session.commit();return jsonify(data(x)),201
     @app.get("/api/v1/me/enrollments")
