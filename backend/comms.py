@@ -28,3 +28,16 @@ def register(app):
         out += [{"type":"user","id":x.user_id,"title":x.full_name} for x in UserProfile.query.filter(UserProfile.full_name.ilike(like)).limit(20)]
         out += [{"type":"group","id":x.id,"title":x.name} for x in Group.query.filter(Group.name.ilike(like)).limit(20)]
         return jsonify(items=out)
+
+from backend.academic import Enrollment, Assignment, Attendance
+def register_dashboard(app):
+    @app.get("/api/v1/dashboard")
+    @login_required
+    def dashboard():
+        uid=request.current_user.id
+        enrollments=Enrollment.query.filter_by(student_id=uid,status="enrolled").all()
+        ids=[x.offering_id for x in enrollments]
+        assignments=Assignment.query.filter(Assignment.offering_id.in_(ids)).limit(10).all() if ids else []
+        att=Attendance.query.filter_by(student_id=uid).all()
+        present=sum(x.status=="present" for x in att)
+        return jsonify(stats={"courses":len(enrollments),"upcoming_assignments":len(assignments),"attendance_percent":round(present/len(att)*100,1) if att else 0,"unread_notifications":0},assignments=[{k:getattr(x,k) for k in ("id","title","description","due_at","max_score")} for x in assignments])
