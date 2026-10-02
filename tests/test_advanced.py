@@ -48,3 +48,5 @@ def test_advanced_routes_are_registered():
     assert c.get("/api/v1/library/my-loans",headers=h).status_code==200
     assert c.get("/api/v1/search/all?q=test",headers=h).status_code==200
     assert c.get("/api/v1/profile/verification",headers=h).status_code==200
+    assert c.get("/api/v1/me/course-registration",headers=h).status_code==200
+    assert c.get("/api/v1/me/id-card.pdf",headers=h).status_code==200
