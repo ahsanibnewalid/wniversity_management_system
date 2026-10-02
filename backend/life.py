@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from uuid import uuid4
 from flask import request, jsonify
 from backend.core import db,InstitutionMembership
 from backend.api import login_required
@@ -19,8 +18,6 @@ class ServiceRequest(db.Model):
     id=db.Column(db.Integer,primary_key=True);user_id=db.Column(db.Integer,db.ForeignKey("users.id"),nullable=False);institution_id=db.Column(db.Integer,db.ForeignKey("institutions.id"));request_type=db.Column(db.String(100),nullable=False);details=db.Column(db.Text,default="");status=db.Column(db.String(30),default="submitted");response=db.Column(db.Text,default="");created_at=db.Column(db.DateTime(timezone=True),default=lambda:datetime.now(timezone.utc))
 class Fee(db.Model):
     id=db.Column(db.Integer,primary_key=True);student_id=db.Column(db.Integer,db.ForeignKey("users.id"),nullable=False);institution_id=db.Column(db.Integer,db.ForeignKey("institutions.id"));title=db.Column(db.String(255),nullable=False);amount=db.Column(db.Float,default=0);due_date=db.Column(db.Date);status=db.Column(db.String(30),default="unpaid")
-class Payment(db.Model):
-    id=db.Column(db.Integer,primary_key=True);fee_id=db.Column(db.Integer,db.ForeignKey("fee.id"),nullable=False);user_id=db.Column(db.Integer,db.ForeignKey("users.id"),nullable=False);amount=db.Column(db.Float,default=0);provider=db.Column(db.String(50),default="manual");reference=db.Column(db.String(150),default="");status=db.Column(db.String(30),default="pending");paid_at=db.Column(db.DateTime(timezone=True))
 def data(x):return {c.name:getattr(x,c.name) for c in x.__table__.columns}
 def register(app):
     @app.get("/api/v1/events")
@@ -87,9 +84,9 @@ def register(app):
     @app.get("/api/v1/fees")
     @login_required
     def fees():return jsonify(items=[data(x) for x in Fee.query.filter_by(student_id=request.current_user.id).all()])
-    @app.post("/api/v1/fees/<int:fid>/pay")
+    @app.get("/api/v1/fees/<int:fid>")
     @login_required
-    def pay(fid):
+    def fee_detail(fid):
         f=db.get_or_404(Fee,fid)
         if f.student_id!=request.current_user.id:return jsonify(error="forbidden"),403
-        x=Payment(fee_id=fid,user_id=request.current_user.id,amount=f.amount,provider=(request.get_json() or {}).get("provider","manual"),reference=uuid4().hex,status="paid",paid_at=datetime.now(timezone.utc));f.status="paid";db.session.add(x);db.session.commit();return jsonify(data(x))
+        return jsonify(data(f))
