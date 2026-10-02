@@ -257,3 +257,193 @@ def register(app):
         i=db.get_or_404(Institution,iid);m=membership(iid)
         return jsonify(institution=row(i),role=m.role,permissions=sorted(ROLE_PERMISSIONS.get(m.role,set())))
 
+
+from backend.academic import Faculty, Program, Semester, Course, CourseOffering
+from backend.life import Event, Club, Fee, ServiceRequest
+
+def institution_for_course(course_id):
+    c=Course.query.get(course_id); d=db.session.get(Department,c.department_id) if c else None
+    return d.institution_id if d else None
+
+def scoped(iid, model, ident):
+    x=db.session.get(model,ident)
+    if not x:return None
+    if model is Faculty:return x if x.institution_id==iid else None
+    if model is Department:return x if x.institution_id==iid else None
+    if model is Program:
+        d=db.session.get(Department,x.department_id);return x if d and d.institution_id==iid else None
+    if model is Course:
+        d=db.session.get(Department,x.department_id);return x if d and d.institution_id==iid else None
+    if model is Semester:
+        p=db.session.get(Program,x.program_id);d=db.session.get(Department,p.department_id) if p else None;return x if d and d.institution_id==iid else None
+    if model is CourseOffering:
+        c=db.session.get(Course,x.course_id);d=db.session.get(Department,c.department_id) if c else None;return x if d and d.institution_id==iid else None
+    return None
+
+def admin_academic_routes(app):
+    @app.get("/api/v1/institutions/<int:iid>/admin/faculties")
+    @login_required
+    @require_permission("academics.manage")
+    def af(iid):return jsonify(items=[row(x) for x in Faculty.query.filter_by(institution_id=iid).all()])
+    @app.post("/api/v1/institutions/<int:iid>/admin/faculties")
+    @login_required
+    @require_permission("academics.manage")
+    def acf(iid):
+        d=request.get_json() or {};x=Faculty(institution_id=iid,name=d.get("name","").strip(),code=d.get("code",""),description=d.get("description",""))
+        if not x.name:return jsonify(error="name_required"),400
+        db.session.add(x);db.session.commit();return jsonify(data=row(x)),201
+    @app.put("/api/v1/institutions/<int:iid>/admin/faculties/<int:fid>")
+    @login_required
+    @require_permission("academics.manage")
+    def ufac(iid,fid):
+        x=scoped(iid,Faculty,fid)
+        if not x:return jsonify(error="faculty_not_found"),404
+        d=request.get_json() or {}
+        for k in ("name","code","description"):
+            if k in d:setattr(x,k,d[k])
+        db.session.commit();return jsonify(data=row(x))
+    @app.delete("/api/v1/institutions/<int:iid>/admin/faculties/<int:fid>")
+    @login_required
+    @require_permission("academics.manage")
+    def dfac(iid,fid):
+        x=scoped(iid,Faculty,fid)
+        if not x:return jsonify(error="faculty_not_found"),404
+        db.session.delete(x);db.session.commit();return jsonify(status="deleted")
+
+    @app.get("/api/v1/institutions/<int:iid>/admin/programs")
+    @login_required
+    @require_permission("academics.manage")
+    def ap(iid):
+        ds=Department.query.filter_by(institution_id=iid).all();ids=[d.id for d in ds]
+        return jsonify(items=[row(x) for x in Program.query.filter(Program.department_id.in_(ids)).all()] if ids else [])
+    @app.post("/api/v1/institutions/<int:iid>/admin/programs")
+    @login_required
+    @require_permission("academics.manage")
+    def cp(iid):
+        d=request.get_json() or {};dep=db.session.get(Department,d.get("department_id"))
+        if not dep or dep.institution_id!=iid:return jsonify(error="department_not_found"),404
+        x=Program(department_id=dep.id,name=d.get("name",""),code=d.get("code",""),degree=d.get("degree",""),duration_years=d.get("duration_years",4));db.session.add(x);db.session.commit();return jsonify(data=row(x)),201
+    @app.put("/api/v1/institutions/<int:iid>/admin/programs/<int:pid>")
+    @login_required
+    @require_permission("academics.manage")
+    def up(iid,pid):
+        x=scoped(iid,Program,pid)
+        if not x:return jsonify(error="program_not_found"),404
+        d=request.get_json() or {}
+        for k in ("name","code","degree","duration_years"):
+            if k in d:setattr(x,k,d[k])
+        db.session.commit();return jsonify(data=row(x))
+    @app.delete("/api/v1/institutions/<int:iid>/admin/programs/<int:pid>")
+    @login_required
+    @require_permission("academics.manage")
+    def dp(iid,pid):
+        x=scoped(iid,Program,pid)
+        if not x:return jsonify(error="program_not_found"),404
+        db.session.delete(x);db.session.commit();return jsonify(status="deleted")
+
+    @app.get("/api/v1/institutions/<int:iid>/admin/courses")
+    @login_required
+    @require_permission("academics.manage")
+    def ac(iid):
+        ds=Department.query.filter_by(institution_id=iid).all();ids=[d.id for d in ds]
+        return jsonify(items=[row(x) for x in Course.query.filter(Course.department_id.in_(ids)).all()] if ids else [])
+    @app.post("/api/v1/institutions/<int:iid>/admin/courses")
+    @login_required
+    @require_permission("academics.manage")
+    def cc(iid):
+        d=request.get_json() or {};dep=db.session.get(Department,d.get("department_id"))
+        if not dep or dep.institution_id!=iid:return jsonify(error="department_not_found"),404
+        x=Course(department_id=dep.id,code=d.get("code",""),title=d.get("title",""),credits=float(d.get("credits",3)),description=d.get("description",""));db.session.add(x);db.session.commit();return jsonify(data=row(x)),201
+    @app.put("/api/v1/institutions/<int:iid>/admin/courses/<int:cid>")
+    @login_required
+    @require_permission("academics.manage")
+    def uc(iid,cid):
+        x=scoped(iid,Course,cid)
+        if not x:return jsonify(error="course_not_found"),404
+        d=request.get_json() or {}
+        for k in ("code","title","credits","description"):
+            if k in d:setattr(x,k,d[k])
+        db.session.commit();return jsonify(data=row(x))
+    @app.delete("/api/v1/institutions/<int:iid>/admin/courses/<int:cid>")
+    @login_required
+    @require_permission("academics.manage")
+    def dc(iid,cid):
+        x=scoped(iid,Course,cid)
+        if not x:return jsonify(error="course_not_found"),404
+        db.session.delete(x);db.session.commit();return jsonify(status="deleted")
+
+    @app.get("/api/v1/institutions/<int:iid>/admin/events")
+    @login_required
+    @require_permission("content.manage")
+    def ae(iid):return jsonify(items=[row(x) for x in Event.query.filter_by(institution_id=iid).order_by(Event.starts_at).all()])
+    @app.put("/api/v1/institutions/<int:iid>/admin/events/<int:eid>")
+    @login_required
+    @require_permission("content.manage")
+    def ue(iid,eid):
+        x=db.session.get(Event,eid)
+        if not x or x.institution_id!=iid:return jsonify(error="event_not_found"),404
+        d=request.get_json() or {}
+        for k in ("title","description","location","event_type","capacity"):
+            if k in d:setattr(x,k,d[k])
+        db.session.commit();return jsonify(data=row(x))
+    @app.delete("/api/v1/institutions/<int:iid>/admin/events/<int:eid>")
+    @login_required
+    @require_permission("content.manage")
+    def de(iid,eid):
+        x=db.session.get(Event,eid)
+        if not x or x.institution_id!=iid:return jsonify(error="event_not_found"),404
+        db.session.delete(x);db.session.commit();return jsonify(status="deleted")
+
+    @app.get("/api/v1/institutions/<int:iid>/admin/clubs")
+    @login_required
+    @require_permission("content.manage")
+    def acl(iid):return jsonify(items=[row(x) for x in Club.query.filter_by(institution_id=iid).all()])
+    @app.put("/api/v1/institutions/<int:iid>/admin/clubs/<int:cid>")
+    @login_required
+    @require_permission("content.manage")
+    def ucl(iid,cid):
+        x=db.session.get(Club,cid)
+        if not x or x.institution_id!=iid:return jsonify(error="club_not_found"),404
+        d=request.get_json() or {}
+        for k in ("name","description","logo_url"):
+            if k in d:setattr(x,k,d[k])
+        db.session.commit();return jsonify(data=row(x))
+
+    @app.get("/api/v1/institutions/<int:iid>/admin/service-requests")
+    @login_required
+    @require_permission("requests.manage")
+    def asr(iid):return jsonify(items=[row(x) for x in ServiceRequest.query.filter_by(institution_id=iid).order_by(ServiceRequest.created_at.desc()).all()])
+    @app.put("/api/v1/institutions/<int:iid>/admin/service-requests/<int:sid>")
+    @login_required
+    @require_permission("requests.manage")
+    def usr(iid,sid):
+        x=db.session.get(ServiceRequest,sid)
+        if not x or x.institution_id!=iid:return jsonify(error="request_not_found"),404
+        d=request.get_json() or {}
+        for k in ("status","response"):
+            if k in d:setattr(x,k,d[k])
+        db.session.commit();return jsonify(data=row(x))
+
+    @app.get("/api/v1/institutions/<int:iid>/admin/fees")
+    @login_required
+    @require_permission("finance.manage")
+    def afe(iid):return jsonify(items=[row(x) for x in Fee.query.filter_by(institution_id=iid).all()])
+    @app.post("/api/v1/institutions/<int:iid>/admin/fees")
+    @login_required
+    @require_permission("finance.manage")
+    def cfe(iid):
+        d=request.get_json() or {};x=Fee(institution_id=iid,student_id=d.get("student_id"),title=d.get("title",""),amount=float(d.get("amount",0)),due_date=d.get("due_date"),status=d.get("status","unpaid"))
+        if not x.student_id or not x.title:return jsonify(error="student_id_and_title_required"),400
+        db.session.add(x);db.session.commit();return jsonify(data=row(x)),201
+    @app.put("/api/v1/institutions/<int:iid>/admin/fees/<int:fid>")
+    @login_required
+    @require_permission("finance.manage")
+    def ufe(iid,fid):
+        x=db.session.get(Fee,fid)
+        if not x or x.institution_id!=iid:return jsonify(error="fee_not_found"),404
+        d=request.get_json() or {}
+        for k in ("title","amount","due_date","status","student_id"):
+            if k in d:setattr(x,k,d[k])
+        db.session.commit();return jsonify(data=row(x))
+
+admin_academic_routes(app)
