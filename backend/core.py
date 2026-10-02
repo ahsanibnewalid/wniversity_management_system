@@ -246,6 +246,12 @@ def create_app():
         return {"status":"active"}
     @app.get("/api/v1/groups/<int:gid>/posts")
     def posts(gid):
+        u,e=auth()
+        if e:return e
+        g=db.session.get(Group,gid)
+        if not g:return {"error":"group_not_found"},404
+        if not InstitutionMembership.query.filter_by(institution_id=g.institution_id,user_id=u.id,status="active").first():return {"error":"forbidden"},403
+        if not GroupMembership.query.filter_by(group_id=gid,user_id=u.id,status="active").first():return {"error":"group_membership_required"},403
         ps=Post.query.filter_by(group_id=gid).order_by(Post.created_at.desc()).limit(50).all()
         return {"items":[{"id":p.id,"author_id":p.author_id,"type":p.post_type,"body":p.body,"created_at":p.created_at.isoformat()} for p in ps]}
     @app.post("/api/v1/groups/<int:gid>/posts")
@@ -270,6 +276,9 @@ def create_app():
     def react(pid):
         u,e=auth()
         if e:return e
+        p=db.session.get(Post,pid)
+        if not p:return {"error":"post_not_found"},404
+        if not GroupMembership.query.filter_by(group_id=p.group_id,user_id=u.id,status="active").first():return {"error":"forbidden"},403
         d=request.get_json(silent=True) or {}; r=Reaction.query.filter_by(post_id=pid,user_id=u.id).first()
         if r:r.reaction=d.get("reaction","like")
         else:db.session.add(Reaction(post_id=pid,user_id=u.id,reaction=d.get("reaction","like")))
