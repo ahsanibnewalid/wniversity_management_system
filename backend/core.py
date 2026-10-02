@@ -276,7 +276,7 @@ def create_app():
         u,e=auth()
         if e:return e
         ns=Notification.query.filter_by(user_id=u.id).order_by(Notification.created_at.desc()).limit(50).all()
-        return {"items":[{"id":n.id,"kind":n.kind,"title":n.title,"body":n.body,"read":n.is_read,"created_at":n.created_at.isoformat()} for n in ns]}
+        return {"items":[{"id":n.id,"kind":n.kind,"title":n.title,"body":n.body,"is_read":n.is_read,"created_at":n.created_at.isoformat()} for n in ns]}
 
     @app.post("/api/v1/auth/logout")
     def logout():
