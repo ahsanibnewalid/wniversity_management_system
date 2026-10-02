@@ -11,7 +11,7 @@ def data(x):return {c.name:getattr(x,c.name) for c in x.__table__.columns}
 def register(app):
     @app.get("/api/v1/notifications")
     @login_required
-    def notifications():return jsonify(items=[data(x) for x in Notification.query.filter_by(user_id=request.current_user.id).order_by(Notification.created_at.desc()).limit(100).all()])
+    def platform_notifications():return jsonify(items=[data(x) for x in Notification.query.filter_by(user_id=request.current_user.id).order_by(Notification.created_at.desc()).limit(100).all()])
     @app.post("/api/v1/notifications/<int:nid>/read")
     @login_required
     def notification_read(nid):
