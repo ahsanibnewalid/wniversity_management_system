@@ -138,6 +138,12 @@ def register(app):
         db.session.add(m);db.session.add(Notification(user_id=u.id,kind="membership",title="Added to institution",body=f"You were added to institution #{iid} as {role}."));db.session.commit()
         return jsonify(data=row(m)),201
 
+    @app.get("/api/v1/institutions/<int:iid>/admin/departments")
+    @login_required
+    @require_permission("academics.manage")
+    def admin_departments(iid):
+        return jsonify(items=[row(x) for x in Department.query.filter_by(institution_id=iid).order_by(Department.name).all()])
+
     @app.post("/api/v1/institutions/<int:iid>/admin/departments")
     @login_required
     @require_permission("academics.manage")
