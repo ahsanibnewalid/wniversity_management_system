@@ -31,6 +31,10 @@ class Result(db.Model):
 class TimetableEntry(db.Model):
     id=db.Column(db.Integer,primary_key=True); offering_id=db.Column(db.Integer,db.ForeignKey("course_offering.id"),nullable=False); weekday=db.Column(db.Integer,default=0); start_time=db.Column(db.String(10),default="09:00"); end_time=db.Column(db.String(10),default="10:00"); room=db.Column(db.String(100),default="")
 
+def utc_dt(value):
+    if value is None:return None
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
+
 def data(x):
     return {c.name:getattr(x,c.name) for c in x.__table__.columns}
 def register(app):
@@ -114,7 +118,7 @@ def register(app):
         if not Enrollment.query.filter_by(offering_id=o.id,student_id=request.current_user.id,status="enrolled").first():
             return jsonify(error="enrollment_required"),403
         existing=Submission.query.filter_by(assignment_id=aid,student_id=request.current_user.id).first()
-        if a.due_at and datetime.now(timezone.utc)>a.due_at and not existing:
+        if a.due_at and datetime.now(timezone.utc)>utc_dt(a.due_at) and not existing:
             return jsonify(error="deadline_passed"),409
         d=request.get_json() or {}
         x=existing or Submission(assignment_id=aid,student_id=request.current_user.id)
