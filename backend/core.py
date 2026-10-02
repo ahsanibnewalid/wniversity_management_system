@@ -1,7 +1,7 @@
 import os
 from datetime import datetime, timezone
 from secrets import token_urlsafe
-from flask import Flask, request
+from flask import Flask, request, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -131,6 +131,15 @@ def create_app():
     def auth():
         u=user()
         return (u,None) if u else (None,({"error":"authentication_required"},401))
+    WEB_DIR=os.path.abspath(os.path.join(app.root_path,"..","web"))
+    @app.get("/")
+    def web_index():
+        return send_from_directory(WEB_DIR,"index.html")
+    @app.get("/<path:asset>")
+    def web_assets(asset):
+        if asset.startswith("api/"):
+            return {"error":"not_found"},404
+        return send_from_directory(WEB_DIR,asset)
     @app.get("/healthz")
     def healthz():
         try: db.session.execute(db.text("SELECT 1")); return {"status":"ok","database":"ok"}
