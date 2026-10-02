@@ -15,6 +15,10 @@ from backend.life import Event, EventRegistration, Club, ClubMembership, Documen
 def now():
     return datetime.now(timezone.utc)
 
+def utc_dt(value):
+    if value is None:return None
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
+
 class Poll(db.Model):
     id=db.Column(db.Integer,primary_key=True)
     post_id=db.Column(db.Integer,db.ForeignKey("posts.id",ondelete="CASCADE"),unique=True,nullable=False)
@@ -206,7 +210,7 @@ def register(app):
     def verification_confirm():
         d=request.get_json() or {}
         t=VerificationToken.query.filter_by(token=d.get("token"),purpose="email",used=False).first()
-        if not t or t.expires_at<now(): return jsonify(error="invalid_or_expired_token"),400
+        if not t or utc_dt(t.expires_at)<now(): return jsonify(error="invalid_or_expired_token"),400
         p=db.session.get(UserProfile,t.user_id);p.is_verified=True if hasattr(p,"is_verified") else True
         t.used=True;db.session.commit();return jsonify(status="verified")
 
@@ -223,7 +227,7 @@ def register(app):
     def password_reset_confirm():
         d=request.get_json() or {}
         t=PasswordResetToken.query.filter_by(token=d.get("token"),used=False).first()
-        if not t or t.expires_at<now():return jsonify(error="invalid_or_expired_token"),400
+        if not t or utc_dt(t.expires_at)<now():return jsonify(error="invalid_or_expired_token"),400
         password=d.get("password","")
         if len(password)<8:return jsonify(error="password_too_short"),400
         u=db.session.get(User,t.user_id);u.password_hash=generate_password_hash(password);t.used=True
