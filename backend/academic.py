@@ -100,8 +100,19 @@ def register(app):
     @app.post("/api/v1/assignments/<int:aid>/submit")
     @login_required
     def submit(aid):
-        d=request.get_json() or {};x=Submission.query.filter_by(assignment_id=aid,student_id=request.current_user.id).first() or Submission(assignment_id=aid,student_id=request.current_user.id)
-        x.body=d.get("body","");x.file_url=d.get("file_url","");x.submitted_at=datetime.now(timezone.utc);db.session.add(x);db.session.commit();return jsonify(data(x)),201
+        a=db.get_or_404(Assignment,aid)
+        o=db.get_or_404(CourseOffering,a.offering_id)
+        if not Enrollment.query.filter_by(offering_id=o.id,student_id=request.current_user.id,status="enrolled").first():
+            return jsonify(error="enrollment_required"),403
+        existing=Submission.query.filter_by(assignment_id=aid,student_id=request.current_user.id).first()
+        if a.due_at and datetime.now(timezone.utc)>a.due_at and not existing:
+            return jsonify(error="deadline_passed"),409
+        d=request.get_json() or {}
+        x=existing or Submission(assignment_id=aid,student_id=request.current_user.id)
+        if x.score is not None:return jsonify(error="graded_submission_locked"),409
+        x.body=d.get("body","");x.file_url=d.get("file_url","");x.submitted_at=datetime.now(timezone.utc);db.session.add(x)
+        db.session.add(Notification(user_id=o.teacher_id,kind="submission",title="New assignment submission",body=f"A submission was received for assignment #{aid}."))
+        db.session.commit();return jsonify(data(x)),201
     @app.post("/api/v1/submissions/<int:sid>/grade")
     @login_required
     def grade(sid):
