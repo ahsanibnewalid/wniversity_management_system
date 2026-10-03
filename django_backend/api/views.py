@@ -104,3 +104,47 @@ def profile(request):
     p.is_complete=all(bool(getattr(p,k)) for k in ("full_name","username","phone","address","institution_text","department","program","student_id"))
     p.save()
     return Response({"status":"updated","profile_complete":p.is_complete})
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def verification_request(request):
+    email=str((request.data or {}).get("email","")).strip().lower()
+    u=User.objects.filter(email=email).first()
+    if not u:return Response({"status":"sent"})
+    from django.utils import timezone
+    x=VerificationToken.objects.create(user_id=u.id,token=token_urlsafe(32),purpose="email",expires_at=timezone.now()+timezone.timedelta(minutes=30),used=False)
+    return Response({"status":"sent","token":x.token})
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def verification_confirm(request):
+    t=str((request.data or {}).get("token","")).strip()
+    from django.utils import timezone
+    x=VerificationToken.objects.filter(token=t,used=False,expires_at__gt=timezone.now()).first()
+    if not x:return Response({"error":"invalid_or_expired_token"},400)
+    x.used=True;x.save()
+    uv=UserVerification.objects.filter(user_id=x.user_id).first() or UserVerification(user_id=x.user_id)
+    uv.verified=True;uv.verified_at=timezone.now();uv.save()
+    return Response({"verified":True})
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def password_reset_request(request):
+    email=str((request.data or {}).get("email","")).strip().lower()
+    u=User.objects.filter(email=email).first()
+    if not u:return Response({"status":"sent"})
+    from django.utils import timezone
+    x=PasswordResetToken.objects.create(user_id=u.id,token=token_urlsafe(32),expires_at=timezone.now()+timezone.timedelta(minutes=30),used=False)
+    return Response({"status":"sent","token":x.token})
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def password_reset_confirm(request):
+    from django.utils import timezone
+    d=request.data or {};x=PasswordResetToken.objects.filter(token=str(d.get("token","")).strip(),used=False,expires_at__gt=timezone.now()).first()
+    if not x:return Response({"error":"invalid_or_expired_token"},400)
+    password=str(d.get("new_password",""))
+    if len(password)<8:return Response({"error":"password_too_short"},400)
+    from werkzeug.security import generate_password_hash
+    u=User.objects.get(pk=x.user_id);u.password_hash=generate_password_hash(password);u.save();x.used=True;x.save()
+    return Response({"status":"changed"})
