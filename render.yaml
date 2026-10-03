@@ -2,18 +2,38 @@ services:
   - type: web
     name: campushub
     runtime: python
+    rootDir: django_backend
     buildCommand: pip install -r requirements.txt
-    startCommand: python -m gunicorn backend.app:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120
+    startCommand: python -m gunicorn django_backend.config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120
     healthCheckPath: /healthz
     envVars:
       - key: DATABASE_URL
         fromDatabase:
           name: campushub-db
           property: connectionString
+      - key: DATABASE_SSL_REQUIRE
+        value: "true"
       - key: SECRET_KEY
         generateValue: true
-      - key: CORS_ORIGINS
-        value: "*"
+      - key: DEBUG
+        value: "false"
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: EMAIL_USE_TLS
+        value: "true"
+      - key: DEFAULT_FROM_EMAIL
+        sync: false
+
 databases:
   - name: campushub-db
     databaseName: campushub
