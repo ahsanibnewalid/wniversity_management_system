@@ -37,6 +37,16 @@ def utc_dt(value):
 
 def data(x):
     return {c.name:getattr(x,c.name) for c in x.__table__.columns}
+
+def teacher_can_access_offering(offering, user_id):
+    if not offering or offering.teacher_id!=user_id:
+        return False
+    course=db.session.get(Course,offering.course_id)
+    department=db.session.get(Department,course.department_id) if course else None
+    return bool(department and InstitutionMembership.query.filter_by(
+        institution_id=department.institution_id,user_id=user_id,status="active",role="teacher"
+    ).first())
+
 def register(app):
     @app.post("/api/v1/institutions/<int:iid>/faculties")
     @login_required
@@ -66,18 +76,29 @@ def register(app):
     def add_offering(cid):
         c=db.get_or_404(Course,cid);dep=db.get_or_404(Department,c.department_id)
         if not institution_manager(dep.institution_id):return jsonify(error="forbidden"),403
-        d=request.get_json() or {};x=CourseOffering(course_id=cid,semester_id=d.get("semester_id"),teacher_id=d.get("teacher_id") or request.current_user.id,section=d.get("section","A"),room=d.get("room",""),capacity=d.get("capacity",50));db.session.add(x);db.session.commit();return jsonify(data(x)),201
+        d=request.get_json() or {}
+        try:
+            teacher_id=int(d.get("teacher_id") or request.current_user.id)
+        except (TypeError,ValueError):
+            return jsonify(error="invalid_teacher_id"),400
+        if not InstitutionMembership.query.filter_by(institution_id=dep.institution_id,user_id=teacher_id,status="active",role="teacher").first():
+            return jsonify(error="active_teacher_required"),400
+        x=CourseOffering(course_id=cid,semester_id=d.get("semester_id"),teacher_id=teacher_id,section=d.get("section","A"),room=d.get("room",""),capacity=d.get("capacity",50));db.session.add(x);db.session.commit();return jsonify(data(x)),201
     @app.get("/api/v1/courses/<int:cid>/offerings")
     def offerings(cid):return jsonify(items=[data(x) for x in CourseOffering.query.filter_by(course_id=cid).all()])
     @app.post("/api/v1/offerings/<int:oid>/enroll")
     @login_required
     def enroll(oid):
-        d=request.get_json() or {};sid=int(d.get("student_id",request.current_user.id))
+        d=request.get_json(silent=True) or {}
+        try:
+            sid=int(d.get("student_id",request.current_user.id))
+        except (TypeError,ValueError):
+            return jsonify(error="invalid_student_id"),400
         if sid!=request.current_user.id:return jsonify(error="forbidden"),403
         o=db.session.get(CourseOffering,oid)
         if not o:return jsonify(error="offering_not_found"),404
         course=db.session.get(Course,o.course_id);dep=db.session.get(Department,course.department_id) if course else None
-        if not dep or not InstitutionMembership.query.filter_by(institution_id=dep.institution_id,user_id=sid,status="active").first():
+        if not dep or not InstitutionMembership.query.filter_by(institution_id=dep.institution_id,user_id=sid,status="active",role="student").first():
             return jsonify(error="institution_membership_required"),403
         if o.status!="open":return jsonify(error="offering_closed"),409
         if o.capacity and Enrollment.query.filter_by(offering_id=oid,status="enrolled").count()>=o.capacity:return jsonify(error="offering_full"),409
@@ -99,7 +120,7 @@ def register(app):
     @login_required
     def save_attendance(oid):
         o=db.get_or_404(CourseOffering,oid)
-        if o.teacher_id!=request.current_user.id:return jsonify(error="forbidden"),403
+        if not teacher_can_access_offering(o,request.current_user.id):return jsonify(error="forbidden"),403
         d=request.get_json() or {};day=datetime.fromisoformat(d.get("date",datetime.now().date().isoformat())).date()
         allowed={x.student_id for x in Enrollment.query.filter_by(offering_id=oid,status="enrolled").all()}
         for row in d.get("records",[]):
@@ -117,7 +138,7 @@ def register(app):
     @login_required
     def add_assignment(oid):
         o=db.get_or_404(CourseOffering,oid)
-        if o.teacher_id!=request.current_user.id:return jsonify(error="forbidden"),403
+        if not teacher_can_access_offering(o,request.current_user.id):return jsonify(error="forbidden"),403
         d=request.get_json() or {};title=str(d.get("title","")).strip()
         if not title:return jsonify(error="title_required"),400
         max_score=float(d.get("max_score",100))
@@ -147,13 +168,19 @@ def register(app):
     @login_required
     def grade(sid):
         x=db.get_or_404(Submission,sid);a=db.get_or_404(Assignment,x.assignment_id);o=db.get_or_404(CourseOffering,a.offering_id)
-        if o.teacher_id!=request.current_user.id:return jsonify(error="forbidden"),403
-        d=request.get_json() or {};x.score=d.get("score");x.feedback=d.get("feedback","");db.session.commit();return jsonify(data(x))
+        if not teacher_can_access_offering(o,request.current_user.id):return jsonify(error="forbidden"),403
+        d=request.get_json() or {}
+        try:
+            score=float(d.get("score"))
+        except (TypeError,ValueError):
+            return jsonify(error="valid_score_required"),400
+        if score<0 or score>a.max_score:return jsonify(error="score_out_of_range"),400
+        x.score=score;x.feedback=str(d.get("feedback",""));db.session.commit();return jsonify(data(x))
     @app.post("/api/v1/offerings/<int:oid>/exams")
     @login_required
     def add_exam(oid):
         o=db.get_or_404(CourseOffering,oid)
-        if o.teacher_id!=request.current_user.id:return jsonify(error="forbidden"),403
+        if not teacher_can_access_offering(o,request.current_user.id):return jsonify(error="forbidden"),403
         d=request.get_json() or {};at=datetime.fromisoformat(d["exam_at"].replace("Z","+00:00")) if d.get("exam_at") else None;x=Exam(offering_id=oid,title=d.get("title",""),exam_type=d.get("exam_type","final"),exam_at=at,room=d.get("room",""));db.session.add(x);db.session.commit();return jsonify(data(x)),201
     @app.get("/api/v1/offerings/<int:oid>/exams")
     @login_required
@@ -171,12 +198,19 @@ def register(app):
     def add_result(sid):
         d=request.get_json() or {}; course=db.session.get(Course,d.get("course_id")); dep=db.session.get(Department,course.department_id) if course else None
         if not dep or not institution_manager(dep.institution_id):return jsonify(error="forbidden"),403
+        if not InstitutionMembership.query.filter_by(institution_id=dep.institution_id,user_id=sid,status="active",role="student").first():
+            return jsonify(error="student_not_in_institution"),400
+        semester=db.session.get(Semester,d.get("semester_id")) if d.get("semester_id") else None
+        if d.get("semester_id") and not semester:return jsonify(error="semester_not_found"),400
+        program=db.session.get(Program,semester.program_id) if semester and semester.program_id else None
+        if semester and (not program or program.department_id!=dep.id):
+            return jsonify(error="semester_not_in_course_department"),400
         x=Result(student_id=sid,course_id=d["course_id"],semester_id=d.get("semester_id"),grade=d["grade"],grade_point=d.get("grade_point",0),credits=d.get("credits",0),published=d.get("published",False));db.session.add(x);db.session.commit();return jsonify(data(x)),201
     @app.post("/api/v1/offerings/<int:oid>/timetable")
     @login_required
     def add_timetable(oid):
         o=db.get_or_404(CourseOffering,oid)
-        if o.teacher_id!=request.current_user.id:return jsonify(error="forbidden"),403
+        if not teacher_can_access_offering(o,request.current_user.id):return jsonify(error="forbidden"),403
         d=request.get_json() or {};x=TimetableEntry(offering_id=oid,weekday=d.get("weekday",0),start_time=d.get("start_time","09:00"),end_time=d.get("end_time","10:00"),room=d.get("room",""));db.session.add(x);db.session.commit();return jsonify(data(x)),201
     @app.get("/api/v1/me/timetable")
     @login_required

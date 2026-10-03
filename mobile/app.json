@@ -7,6 +7,22 @@
     },
     "android": {
       "package": "com.ahsanshuvo.campushubmobile"
-    }
+    },
+    "androidStatusBar": {
+      "barStyle": "dark-content",
+      "backgroundColor": "#ffffff",
+      "hidden": false,
+      "translucent": false
+    },
+    "plugins": [
+      [
+        "expo-navigation-bar",
+        {
+          "enforceContrast": false,
+          "hidden": true,
+          "style": "dark"
+        }
+      ]
+    ]
   }
 }

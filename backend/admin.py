@@ -25,6 +25,19 @@ def membership(iid, uid=None):
     uid = uid or request.current_user.id
     return InstitutionMembership.query.filter_by(institution_id=iid, user_id=uid, status="active").first()
 
+def may_assign_role(iid, role):
+    institution=db.session.get(Institution,iid)
+    if institution and institution.owner_id==request.current_user.id:
+        return role!="institution_owner"
+    actor=membership(iid)
+    assignable={
+        "institution_admin":{"principal","dean","department_admin","teacher","media_manager","class_representative","student"},
+        "principal":{"dean","department_admin","teacher","media_manager","class_representative","student"},
+        "dean":{"department_admin","teacher","media_manager","class_representative","student"},
+        "department_admin":{"teacher","media_manager","class_representative","student"},
+    }
+    return bool(actor and role in assignable.get(actor.role,set()))
+
 def has_permission(iid, permission):
     m = membership(iid)
     institution = db.session.get(Institution, iid)
@@ -104,14 +117,20 @@ def register(app):
     def edit_member(iid,mid):
         m=db.session.get(InstitutionMembership,mid)
         if not m or m.institution_id!=iid:return jsonify(error="membership_not_found"),404
-        d=request.get_json() or {}; actor=membership(iid)
+        d=request.get_json() or {}
         role=d.get("role")
         if role:
-            allowed=set(ROLE_PERMISSIONS)
-            if role not in allowed:return jsonify(error="invalid_role"),400
-            if actor.role!="institution_owner" and role=="institution_owner":return jsonify(error="owner_only"),403
+            if not isinstance(role,str) or role not in ROLE_PERMISSIONS:return jsonify(error="invalid_role"),400
+            institution=db.session.get(Institution,iid)
+            if institution and m.user_id==institution.owner_id:return jsonify(error="owner_managed"),400
+            if not may_assign_role(iid,role):return jsonify(error="role_assignment_forbidden"),403
             m.role=role
-        for k in ("status","student_id","program"):
+        if "status" in d:
+            if not isinstance(d["status"],str) or d["status"] not in {"active","suspended"}:return jsonify(error="invalid_status"),400
+            institution=db.session.get(Institution,iid)
+            if institution and m.user_id==institution.owner_id:return jsonify(error="owner_managed"),400
+            m.status=d["status"]
+        for k in ("student_id","program"):
             if k in d and d[k] is not None:setattr(m,k,d[k])
         db.session.commit();return jsonify(data=row(m))
 
@@ -131,9 +150,17 @@ def register(app):
         d=request.get_json() or {}; email=str(d.get("email","")).strip().lower()
         u=User.query.filter_by(email=email).first()
         if not u:return jsonify(error="user_not_found",message="The user must register before being added."),404
-        if membership(iid,u.id):return jsonify(error="already_member"),409
         role=d.get("role","student")
-        if role not in ROLE_PERMISSIONS:return jsonify(error="invalid_role"),400
+        if not isinstance(role,str) or role not in ROLE_PERMISSIONS:return jsonify(error="invalid_role"),400
+        if not may_assign_role(iid,role):return jsonify(error="role_assignment_forbidden"),403
+        existing=InstitutionMembership.query.filter_by(institution_id=iid,user_id=u.id).first()
+        if existing and existing.status=="active":return jsonify(error="already_member"),409
+        if existing:
+            existing.role=role;existing.status="active"
+            if d.get("student_id") is not None:existing.student_id=d["student_id"]
+            if d.get("program") is not None:existing.program=d["program"]
+            db.session.commit()
+            return jsonify(data=row(existing)),200
         m=InstitutionMembership(institution_id=iid,user_id=u.id,role=role,status="active",student_id=d.get("student_id"),program=d.get("program"))
         db.session.add(m);db.session.add(Notification(user_id=u.id,kind="membership",title="Added to institution",body=f"You were added to institution #{iid} as {role}."));db.session.commit()
         return jsonify(data=row(m)),201
@@ -236,6 +263,24 @@ def register(app):
         GroupMembership.query.filter_by(group_id=gid).delete()
         db.session.delete(x);db.session.commit();return jsonify(status="deleted")
 
+    @app.post("/api/v1/institutions/<int:iid>/admin/groups/<int:gid>/members")
+    @login_required
+    @require_permission("groups.manage")
+    def admin_invite_group_member(iid,gid):
+        group=db.session.get(Group,gid)
+        if not group or group.institution_id!=iid:return jsonify(error="group_not_found"),404
+        d=request.get_json() or {}; user_id=d.get("user_id")
+        if not user_id or not InstitutionMembership.query.filter_by(institution_id=iid,user_id=user_id,status="active").first():
+            return jsonify(error="active_institution_member_required"),400
+        member=GroupMembership.query.filter_by(group_id=gid,user_id=user_id).first()
+        if member and member.status=="active":return jsonify(error="already_group_member"),409
+        if member:
+            member.status="invited"
+        else:
+            db.session.add(GroupMembership(group_id=gid,user_id=user_id,role="member",status="invited"))
+        db.session.commit()
+        return jsonify(status="invited"),201
+
     @app.get("/api/v1/institutions/<int:iid>/admin/requests")
     @login_required
     @require_permission("requests.manage")
@@ -253,8 +298,8 @@ def register(app):
         if r.status!="pending":return jsonify(error="already_reviewed"),409
         r.status="approved" if decision=="approve" else "rejected";r.reviewed_by=request.current_user.id
         if decision=="approve":
-            old=membership(iid,r.user_id)
-            if old: old.status="active";old.student_id=r.student_id;old.program=r.program
+            old=InstitutionMembership.query.filter_by(institution_id=iid,user_id=r.user_id).first()
+            if old: old.status="active";old.role="student";old.student_id=r.student_id;old.program=r.program
             else: db.session.add(InstitutionMembership(institution_id=iid,user_id=r.user_id,role="student",status="active",student_id=r.student_id,program=r.program))
             db.session.add(Notification(user_id=r.user_id,kind="membership",title="Join request approved",body=f"Your request to join institution #{iid} was approved."))
         db.session.commit();return jsonify(status=r.status)
@@ -471,4 +516,3 @@ def admin_academic_routes(app):
         for k in ("title","amount","due_date","status","student_id"):
             if k in d:setattr(x,k,d[k])
         db.session.commit();return jsonify(data=row(x))
-

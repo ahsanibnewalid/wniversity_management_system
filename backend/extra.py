@@ -125,6 +125,19 @@ def register(app):
     @app.post("/api/v1/announcements/<int:aid>/read")
     @login_required
     def mark_announcement_read(aid):
+        from backend.platform import Announcement
+        announcement=db.session.get(Announcement,aid)
+        if not announcement:return jsonify(error="announcement_not_found"),404
+        membership=InstitutionMembership.query.filter_by(
+            institution_id=announcement.institution_id,
+            user_id=request.current_user.id,status="active",
+        ).first()
+        if not membership:return jsonify(error="announcement_not_found"),404
+        visible={"all"}
+        if membership.role=="student":visible.add("students")
+        elif membership.role=="teacher":visible.update(("teachers","staff"))
+        else:visible.update(("staff","admins"))
+        if announcement.audience not in visible:return jsonify(error="announcement_not_found"),404
         x=AnnouncementRead.query.filter_by(announcement_id=aid,user_id=request.current_user.id).first()
         if not x:db.session.add(AnnouncementRead(announcement_id=aid,user_id=request.current_user.id))
         db.session.commit();return jsonify(status="read")

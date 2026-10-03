@@ -1,14 +1,21 @@
 import os
 from datetime import datetime, timezone
 from secrets import token_urlsafe
-from flask import Flask, request, send_from_directory, Response, abort
+from flask import Flask, request, send_from_directory, Response, abort, current_app
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
+from sqlalchemy.exc import IntegrityError
 from werkzeug.security import generate_password_hash, check_password_hash
 
 db=SQLAlchemy()
 TOKENS={}
 def now(): return datetime.now(timezone.utc)
+
+def is_platform_admin(user):
+    configured=current_app.config.get("PLATFORM_ADMIN_EMAILS","")
+    emails=configured if isinstance(configured,(list,tuple,set)) else str(configured).split(",")
+    allowed={str(email).strip().lower() for email in emails if str(email).strip()}
+    return bool(user and user.email.strip().lower() in allowed)
 
 class User(db.Model):
     __tablename__="users"
@@ -117,12 +124,14 @@ class Notification(db.Model):
 
 MANAGERS={"institution_owner","institution_admin","principal"}
 
-def create_app():
+def create_app(config=None):
     app=Flask(__name__)
     uri=os.getenv("DATABASE_URL","sqlite:///campushub.db")
     if uri.startswith("postgres://"): uri=uri.replace("postgres://","postgresql+psycopg://",1)
     elif uri.startswith("postgresql://") and "+psycopg" not in uri: uri=uri.replace("postgresql://","postgresql+psycopg://",1)
-    app.config.update(SECRET_KEY=os.getenv("SECRET_KEY","dev-change-me"),SQLALCHEMY_DATABASE_URI=uri,SQLALCHEMY_TRACK_MODIFICATIONS=False)
+    app.config.update(SECRET_KEY=os.getenv("SECRET_KEY","dev-change-me"),SQLALCHEMY_DATABASE_URI=uri,SQLALCHEMY_TRACK_MODIFICATIONS=False,PLATFORM_ADMIN_EMAILS=os.getenv("PLATFORM_ADMIN_EMAILS",""))
+    if config:
+        app.config.update(config)
     db.init_app(app); CORS(app,resources={r"/api/*":{"origins":os.getenv("CORS_ORIGINS","*")}})
     with app.app_context(): db.create_all()
     def user():
@@ -186,7 +195,7 @@ def create_app():
     def me():
         u,e=auth()
         if e:return e
-        return {"id":u.id,"email":u.email,"profile":{"full_name":u.profile.full_name,"username":u.profile.username,"is_complete":u.profile.is_complete}}
+        return {"id":u.id,"email":u.email,"platform_admin":is_platform_admin(u),"profile":{"full_name":u.profile.full_name,"username":u.profile.username,"is_complete":u.profile.is_complete}}
     @app.get("/api/v1/institutions")
     def institutions():
         return {"items":[{"id":i.id,"name":i.name,"slug":i.slug,"kind":i.kind,"address":i.address} for i in Institution.query.order_by(Institution.name).all()]}
@@ -206,17 +215,31 @@ def create_app():
         if e:return e
         d=request.get_json(silent=True) or {}
         if not u.profile.is_complete:return {"error":"complete_profile_first"},403
-        if not d.get("name") or not d.get("slug"):return {"error":"name_and_slug_required"},400
-        i=Institution(name=d["name"].strip(),slug=d["slug"].strip().lower(),kind=d.get("kind","university"),address=d.get("address"),website=d.get("website"),description=d.get("description"),owner_id=u.id)
-        db.session.add(i); db.session.flush(); db.session.add(InstitutionMembership(institution_id=i.id,user_id=u.id,role="institution_owner")); db.session.commit()
+        name=str(d.get("name") or "").strip()
+        slug=str(d.get("slug") or "").strip().lower()
+        if not name or not slug:return {"error":"name_and_slug_required"},400
+        if Institution.query.filter((Institution.name==name)|(Institution.slug==slug)).first():
+            return {"error":"institution_name_or_slug_exists"},409
+        i=Institution(name=name,slug=slug,kind=d.get("kind","university"),address=d.get("address"),website=d.get("website"),description=d.get("description"),owner_id=u.id)
+        try:
+            db.session.add(i); db.session.flush()
+            db.session.add(InstitutionMembership(institution_id=i.id,user_id=u.id,role="institution_owner"))
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            return {"error":"institution_name_or_slug_exists"},409
         return {"id":i.id,"slug":i.slug},201
     @app.post("/api/v1/institutions/<int:iid>/join")
     def join(iid):
         u,e=auth()
         if e:return e
         if not u.profile.is_complete:return {"error":"complete_profile_first"},403
+        if InstitutionMembership.query.filter_by(institution_id=iid,user_id=u.id,status="active").first():
+            return {"error":"already_a_member"},409
         d=request.get_json(silent=True) or {}; required=("department_id","student_id","program","session","academic_year")
         if not all(d.get(k) for k in required):return {"error":"academic_details_required"},400
+        department=db.session.get(Department,d["department_id"])
+        if not department or department.institution_id!=iid:return {"error":"department_not_in_institution"},400
         if JoinRequest.query.filter_by(institution_id=iid,user_id=u.id,status="pending").first():return {"error":"request_pending"},409
         r=JoinRequest(institution_id=iid,user_id=u.id,department_id=d["department_id"],student_id=d["student_id"],program=d["program"],session=d["session"],academic_year=d["academic_year"],note=d.get("note"))
         db.session.add(r); db.session.commit(); return {"request_id":r.id,"status":"pending"},201
@@ -225,7 +248,12 @@ def create_app():
         u,e=auth()
         if e:return e
         if not InstitutionMembership.query.filter_by(institution_id=iid,user_id=u.id,status="active").first():return {"error":"institution_membership_required"},403
-        gs=Group.query.filter_by(institution_id=iid).order_by(Group.name).all()
+        joined_group_ids=[m.group_id for m in GroupMembership.query.filter(
+            GroupMembership.user_id==u.id,GroupMembership.status.in_(("active","invited"))
+        ).all()]
+        gs=Group.query.filter_by(institution_id=iid).filter(
+            (Group.is_private.is_(False)) | Group.id.in_(joined_group_ids)
+        ).order_by(Group.name).all()
         return {"items":[{"id":g.id,"name":g.name,"type":g.group_type,"department_id":g.department_id,"session_id":g.session_id,"academic_year_id":g.academic_year_id} for g in gs]}
     @app.post("/api/v1/groups")
     def create_group():
@@ -242,7 +270,14 @@ def create_app():
         g=db.session.get(Group,gid)
         if not g:return {"error":"group_not_found"},404
         if not InstitutionMembership.query.filter_by(institution_id=g.institution_id,user_id=u.id,status="active").first():return {"error":"institution_membership_required"},403
-        if not GroupMembership.query.filter_by(group_id=gid,user_id=u.id).first():db.session.add(GroupMembership(group_id=gid,user_id=u.id));db.session.commit()
+        member=GroupMembership.query.filter_by(group_id=gid,user_id=u.id).first()
+        if g.is_private and (not member or member.status not in ("invited","active")):
+            return {"error":"private_group_invitation_required"},403
+        if member:
+            member.status="active"
+        else:
+            db.session.add(GroupMembership(group_id=gid,user_id=u.id,status="active"))
+        db.session.commit()
         return {"status":"active"}
     @app.get("/api/v1/groups/<int:gid>/posts")
     def posts(gid):
@@ -344,9 +379,12 @@ def create_app():
         if r.status!="pending":return {"error":"already_reviewed"},409
         r.status="approved" if decision=="approve" else "rejected"; r.reviewed_by=u.id
         if decision=="approve":
-            db.session.add(InstitutionMembership(institution_id=r.institution_id,user_id=r.user_id,role="student",status="active",student_id=r.student_id,program=r.program))
-            for g in Group.query.filter_by(institution_id=r.institution_id).all():
-                db.session.add(GroupMembership(group_id=g.id,user_id=r.user_id,role="member",status="active"))
+            old=InstitutionMembership.query.filter_by(institution_id=r.institution_id,user_id=r.user_id).first()
+            if old:
+                old.status="active";old.role="student";old.student_id=r.student_id;old.program=r.program
+            else:
+                db.session.add(InstitutionMembership(institution_id=r.institution_id,user_id=r.user_id,role="student",status="active",student_id=r.student_id,program=r.program))
+            db.session.add(Notification(user_id=r.user_id,kind="membership",title="Join request approved",body=f"Your request to join institution #{r.institution_id} was approved."))
         db.session.commit(); return {"status":r.status}
 
     return app
