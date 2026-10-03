@@ -23,7 +23,7 @@ def events(request):
     if not iid or not member(iid,request.user.id):return Response({"error":"membership_required"},403)
     title=str(d.get("title","")).strip()
     if not title:return Response({"error":"title_required"},400)
-    x=m.Event.objects.create(institution_id=iid,organizer_id=request.user.id,title=title,description=d.get("description",""),starts_at=d.get("starts_at"),ends_at=d.get("ends_at"),location=d.get("location",""),event_type=d.get("event_type","event"),capacity=d.get("capacity"))
+    x=m.Event.objects.create(institution_id=iid,organizer_id=request.user.id,title=title,description=d.get("description",""),starts_at=d.get("starts_at"),ends_at=d.get("ends_at"),location=d.get("location",""),event_type=d.get("event_type","event"),capacity=d.get("capacity"),created_at=datetime.now(timezone.utc))
     return Response(row(x),201)
 
 @api_view(["POST"])
@@ -62,7 +62,7 @@ def documents(request):
     d=request.data or {};iid=d.get("institution_id")
     if not iid or not member(iid,request.user.id):return Response({"error":"membership_required"},403)
     if not str(d.get("title","")).strip() or not str(d.get("url","")).strip():return Response({"error":"title_and_url_required"},400)
-    x=m.Document.objects.create(institution_id=iid,owner_id=request.user.id,title=d["title"],category=d.get("category","general"),url=d["url"]);return Response(row(x),201)
+    x=m.Document.objects.create(institution_id=iid,owner_id=request.user.id,title=d["title"],category=d.get("category","general"),url=d["url"],created_at=datetime.now(timezone.utc));return Response(row(x),201)
 
 @api_view(["GET","POST"])
 @permission_classes([IsAuthenticated])
@@ -72,7 +72,7 @@ def service_requests(request):
     if iid and not member(iid,request.user.id):return Response({"error":"membership_required"},403)
     typ=str(d.get("request_type","general")).strip()
     if not typ:return Response({"error":"request_type_required"},400)
-    x=m.ServiceRequest.objects.create(user_id=request.user.id,institution_id=iid,request_type=typ,details=d.get("details",""));return Response(row(x),201)
+    x=m.ServiceRequest.objects.create(user_id=request.user.id,institution_id=iid,request_type=typ,details=d.get("details",""),status="submitted",response="",created_at=datetime.now(timezone.utc));return Response(row(x),201)
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
@@ -97,7 +97,7 @@ def messages(request):
     if not m.User.objects.filter(pk=rid).exists():return Response({"error":"recipient_not_found"},404)
     viewer=list(m.InstitutionMembership.objects.filter(user_id=request.user.id,status="active").values_list("institution_id",flat=True))
     if not m.InstitutionMembership.objects.filter(user_id=rid,institution_id__in=viewer,status="active").exists():return Response({"error":"recipient_not_found"},404)
-    x=m.Message.objects.create(sender_id=request.user.id,recipient_id=rid,body=body);m.Notification.objects.create(user_id=rid,kind="message",title="New message",body=f"You have a new message from user #{request.user.id}.");return Response(row(x),201)
+    x=m.Message.objects.create(sender_id=request.user.id,recipient_id=rid,body=body,created_at=datetime.now(timezone.utc));m.Notification.objects.create(user_id=rid,kind="message",title="New message",body=f"You have a new message from user #{request.user.id}.");return Response(row(x),201)
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -160,7 +160,7 @@ def change_password(request):
 def announcements(request,iid):
     if request.method=="GET":return Response({"items":rows(m.Announcement.objects.filter(institution_id=iid).order_by("-created_at"))})
     if not manager(iid,request.user.id):return Response({"error":"forbidden"},403)
-    d=request.data or {};x=m.Announcement.objects.create(institution_id=iid,author_id=request.user.id,title=d.get("title",""),body=d.get("body",""),audience=d.get("audience","all"))
+    d=request.data or {};x=m.Announcement.objects.create(institution_id=iid,author_id=request.user.id,title=d.get("title",""),body=d.get("body",""),audience=d.get("audience","all"),created_at=datetime.now(timezone.utc))
     for mm in m.InstitutionMembership.objects.filter(institution_id=iid,status="active"):m.Notification.objects.create(user_id=mm.user_id,kind="announcement",title=x.title,body=x.body)
     return Response(row(x),201)
 
@@ -214,7 +214,7 @@ def lost_found(request,iid=None):
         ids=list(m.InstitutionMembership.objects.filter(user_id=request.user.id,status="active").values_list("institution_id",flat=True)) if iid is None else [iid]
         return Response({"items":rows(m.LostFoundItem.objects.filter(institution_id__in=ids).order_by("-created_at"))})
     if not member(iid,request.user.id):return Response({"error":"membership_required"},403)
-    d=request.data or {};x=m.LostFoundItem.objects.create(institution_id=iid,reporter_id=request.user.id,item_type=d.get("item_type","lost"),title=d.get("title",""),description=d.get("description",""),location=d.get("location",""),contact=d.get("contact",""),status=d.get("status","open"));return Response(row(x),201)
+    d=request.data or {};x=m.LostFoundItem.objects.create(institution_id=iid,reporter_id=request.user.id,item_type=d.get("item_type","lost"),title=d.get("title",""),description=d.get("description",""),location=d.get("location",""),contact=d.get("contact",""),status=d.get("status","open"),created_at=datetime.now(timezone.utc));return Response(row(x),201)
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
@@ -233,7 +233,7 @@ def bus_routes(request,iid):
 def hostel(request,iid):
     if not member(iid,request.user.id):return Response({"error":"forbidden"},403)
     if request.method=="GET":return Response({"items":rows(m.HostelRoom.objects.filter(institution_id=iid))})
-    d=request.data or {};x=m.StudentRequest.objects.create(user_id=request.user.id,institution_id=iid,request_type="hostel",details=str(d.get("details","")),tracking_no="HOSTEL-"+token_urlsafe(8),status="submitted",created_at=datetime.now(timezone.utc));return Response(row(x),201)
+    d=request.data or {};x=m.StudentRequest.objects.create(user_id=request.user.id,institution_id=iid,request_type="hostel",details=str(d.get("details","")),tracking_no="HOSTEL-"+token_urlsafe(8),status="submitted",response="",created_at=datetime.now(timezone.utc));return Response(row(x),201)
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
@@ -293,7 +293,7 @@ def academic_calendar(request,iid):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def advanced_request(request):
-    d=request.data or {};iid=d.get("institution_id");x=m.StudentRequest.objects.create(user_id=request.user.id,institution_id=iid,request_type=d.get("request_type","general"),details=d.get("details",""),tracking_no="REQ-"+token_urlsafe(8),status="submitted",created_at=datetime.now(timezone.utc));return Response(row(x),201)
+    d=request.data or {};iid=d.get("institution_id");x=m.StudentRequest.objects.create(user_id=request.user.id,institution_id=iid,request_type=d.get("request_type","general"),details=d.get("details",""),tracking_no="REQ-"+token_urlsafe(8),status="submitted",response="",created_at=datetime.now(timezone.utc));return Response(row(x),201)
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
