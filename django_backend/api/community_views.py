@@ -19,7 +19,7 @@ def group_access(gid,uid):
 @permission_classes([IsAuthenticated])
 def institution_groups(request,iid):
     if not member(iid,request.user.id):return Response({"error":"institution_membership_required"},403)
-    return Response({"items":[{"id":g.id,"name":g.name,"type":g.group_type,"department_id":g.department_id,"session_id":g.session_id,"academic_year_id":g.academic_year_id} for g in m.Group.objects.filter(institution_id=iid).order_by("name")])
+    return Response({"items":[{"id":g.id,"name":g.name,"type":g.group_type,"department_id":g.department_id,"session_id":g.session_id,"academic_year_id":g.academic_year_id} for g in m.Group.objects.filter(institution_id=iid).order_by("name")]})
 
 @api_view(["GET","POST"])
 @permission_classes([IsAuthenticated])
