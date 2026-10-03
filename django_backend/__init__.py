@@ -1,0 +1,1 @@
+# CampusHub Django backend package.
