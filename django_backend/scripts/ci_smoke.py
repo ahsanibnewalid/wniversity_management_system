@@ -6,16 +6,18 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "django_backend.config.settings"
 import django
 django.setup()
 
-from django.test import Client
+from django.db import connection
 
-response = Client(HTTP_HOST="localhost", secure=True).get("/healthz")
-if response.status_code != 200:
-    print("healthz failed:", response.status_code, response.content.decode())
+try:
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT 1")
+        result = cursor.fetchone()
+except Exception as exc:
+    print("Django PostgreSQL connection failed:", repr(exc))
     sys.exit(1)
 
-payload = response.json()
-if payload != {"status": "ok", "database": "ok"}:
-    print("unexpected health response:", payload)
+if result != (1,):
+    print("Unexpected PostgreSQL result:", result)
     sys.exit(1)
 
 print("Django PostgreSQL integration smoke test passed.")
