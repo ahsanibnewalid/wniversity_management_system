@@ -1,12 +1,10 @@
+from unittest.mock import patch
+
 from backend.app import create_app
 from backend.core import db
 
 def client():
-    app=create_app()
-    app.config.update(TESTING=True,SQLALCHEMY_DATABASE_URI="sqlite:///:memory:")
-    with app.app_context():
-        db.drop_all()
-        db.create_all()
+    app=create_app({"TESTING":True,"SQLALCHEMY_DATABASE_URI":"sqlite://"})
     return app.test_client()
 
 def register_login(c,email="advanced@example.com"):
@@ -22,17 +20,29 @@ def test_advanced_health_and_summary():
     assert r.status_code==200
     assert r.json["cgpa"]==0
 
-def test_password_reset_and_logout_all():
+def test_password_reset_and_logout_all(monkeypatch):
     c=client();h=register_login(c,"reset@example.com")
-    r=c.post("/api/v1/auth/password-reset/request",json={"email":"reset@example.com"})
-    assert r.status_code==200 and r.json["token"]
-    r=c.post("/api/v1/auth/password-reset/confirm",json={"token":r.json["token"],"password":"newpassword123"})
+    monkeypatch.setenv("SMTP_HOST","mail.example.com")
+    monkeypatch.setenv("SMTP_FROM","noreply@example.com")
+    delivered={}
+    with patch("backend.advanced.send_password_reset_email",side_effect=lambda email,token: delivered.update(email=email,token=token)):
+        r=c.post("/api/v1/auth/password-reset/request",json={"email":"reset@example.com"})
+    assert r.status_code==200 and "token" not in r.json
+    r=c.post("/api/v1/auth/password-reset/confirm",json={"token":delivered["token"],"password":"newpassword123"})
     assert r.status_code==200
     r=c.post("/api/v1/auth/login",json={"email":"reset@example.com","password":"newpassword123"})
     assert r.status_code==200
     h2={"Authorization":"Bearer "+r.json["access_token"]}
     assert c.post("/api/v1/auth/logout-all",headers=h2).status_code==200
     assert c.get("/api/v1/auth/me",headers=h2).status_code==401
+
+def test_password_reset_requires_configured_email_delivery(monkeypatch):
+    c=client();register_login(c,"no-mail@example.com")
+    monkeypatch.delenv("SMTP_HOST",raising=False)
+    monkeypatch.delenv("SMTP_FROM",raising=False)
+    r=c.post("/api/v1/auth/password-reset/request",json={"email":"no-mail@example.com"})
+    assert r.status_code==503
+    assert "token" not in r.json
 
 def test_push_and_verification():
     c=client();h=register_login(c,"mobile@example.com")

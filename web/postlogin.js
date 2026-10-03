@@ -16,18 +16,18 @@
     const shell=document.querySelector(".shell"); if(!shell)return;
     const side=shell.querySelector(".side"), nav=side?.querySelector(".nav"); if(!nav)return;
     const admin=Array.from(nav.querySelectorAll("button")).find(b=>/University Admin/i.test(b.textContent));
-    nav.innerHTML=navItems.map(x=>'<button onclick="go(\\''+x[0]+'\\')">'+x[1]+"</button>").join("");
-    if(admin)nav.insertAdjacentHTML("beforeend",'<button onclick="go(\\'admin\\')">University Admin</button>');
-    nav.insertAdjacentHTML("beforeend",'<button onclick="localStorage.removeItem("campushub_token");location.reload()">Sign out</button>');
+    nav.innerHTML=navItems.map(x=>'<button onclick="go(\''+x[0]+'\')">'+x[1]+"</button>").join("");
+    if(admin)nav.insertAdjacentHTML("beforeend",'<button onclick="go(\'admin\')">University Admin</button>');
+    nav.insertAdjacentHTML("beforeend",'<button data-key="campushub_token" onclick="localStorage.removeItem(this.dataset.key);location.reload()">Sign out</button>');
   }
   async function restoreDashboard(){
     const content=document.querySelector("#content"); if(!content)return;
     const [dash,insts]=await Promise.all([get("/dashboard"),get("/my/institutions")]);
     const s=dash.stats||{}, institutions=insts.items||[];
     const card=(title,value,desc)=>'<div class="card"><div class="muted">'+esc(title)+'</div><div class="stat">'+esc(value)+'</div><p class="muted">'+esc(desc)+'</p></div>';
-    const tile=(id,title,desc)=>'<button class="module-card" onclick="go(\\''+id+'\\')"><strong>'+esc(title)+'</strong><span>'+esc(desc)+'</span><em>Open →</em></button>';
+    const tile=(id,title,desc)=>'<button class="module-card" onclick="go(\''+id+'\')"><strong>'+esc(title)+'</strong><span>'+esc(desc)+'</span><em>Open →</em></button>';
     content.innerHTML=
-      '<div class="welcome card"><span class="eyebrow">CAMPUSHUB HOME</span><h2>Welcome back 👋</h2><p class="muted">'+esc(institutions[0]?.name||"No university selected yet. Join or create one from My University.")+'</p><div class="hero-actions"><button class="btn" onclick="go(\\'university\\')">My University</button><button class="ghost" onclick="go(\\'profile\\')">My Profile</button></div></div>'+
+      '<div class="welcome card"><span class="eyebrow">CAMPUSHUB HOME</span><h2>Welcome back 👋</h2><p class="muted">'+esc(institutions[0]?.name||"No university selected yet. Join or create one from My University.")+'</p><div class="hero-actions"><button class="btn" onclick="go(\'university\')">My University</button><button class="ghost" onclick="go(\'profile\')">My Profile</button></div></div>'+
       '<div class="grid">'+card("Courses",s.courses||0,"Current enrolments")+card("Upcoming assignments",s.upcoming_assignments||0,"Deadlines to watch")+card("Attendance",(s.attendance_percent||0)+"%","Current attendance")+card("Notifications",s.unread_notifications||0,"Unread updates")+'</div>'+
       '<div class="section-title"><h2>Academic</h2><span class="muted">Everything for your studies</span></div><div class="module-grid">'+
       [["courses","Courses","Current courses and enrolments"],["assignments","Assignments","Submit work and view feedback"],["attendance","Attendance","Track attendance records"],["results","Results & CGPA","Results, GPA and transcript"],["timetable","Timetable","Today and weekly classes"],["calendar","Academic Calendar","Classes, exams and deadlines"]].map(x=>tile(...x)).join("")+

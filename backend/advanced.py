@@ -1,7 +1,10 @@
 from datetime import datetime, timezone, timedelta
+from email.message import EmailMessage
 from io import BytesIO
+import os
+import smtplib
 from secrets import token_urlsafe
-from flask import request, jsonify, send_file
+from flask import request, jsonify, send_file, current_app
 from werkzeug.security import generate_password_hash
 from backend.core import (
     db, User, UserProfile, AuthToken, Institution, InstitutionMembership,
@@ -9,7 +12,7 @@ from backend.core import (
     Post, Comment, Reaction, Notification
 )
 from backend.api import login_required
-from backend.academic import Faculty, Program, Semester, Course, CourseOffering, Enrollment, Attendance, Assignment, Submission, Result, Exam, TimetableEntry
+from backend.academic import Faculty, Program, Semester, Course, CourseOffering, Enrollment, Attendance, Assignment, Submission, Result, Exam, TimetableEntry, teacher_can_access_offering
 from backend.life import Event, EventRegistration, Club, ClubMembership, Document, ServiceRequest, Fee
 
 def now():
@@ -18,6 +21,36 @@ def now():
 def utc_dt(value):
     if value is None:return None
     return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
+
+def send_password_reset_email(recipient, token):
+    host=os.getenv("SMTP_HOST")
+    sender=os.getenv("SMTP_FROM")
+    if not host or not sender:
+        raise ValueError("SMTP_HOST and SMTP_FROM must be configured.")
+    port=int(os.getenv("SMTP_PORT","587"))
+    message=EmailMessage()
+    message["Subject"]="CampusHub password reset"
+    message["From"]=sender
+    message["To"]=recipient
+    message.set_content(
+        "Use this one-time password reset token within one hour:\n\n"
+        f"{token}\n\n"
+        "If you did not request this reset, ignore this email."
+    )
+    if os.getenv("SMTP_USE_SSL","false").lower()=="true":
+        with smtplib.SMTP_SSL(host,port,timeout=10) as server:
+            username=os.getenv("SMTP_USERNAME")
+            if username:
+                server.login(username,os.getenv("SMTP_PASSWORD",""))
+            server.send_message(message)
+    else:
+        with smtplib.SMTP(host,port,timeout=10) as server:
+            if os.getenv("SMTP_USE_TLS","true").lower()=="true":
+                server.starttls()
+            username=os.getenv("SMTP_USERNAME")
+            if username:
+                server.login(username,os.getenv("SMTP_PASSWORD",""))
+            server.send_message(message)
 
 class Poll(db.Model):
     id=db.Column(db.Integer,primary_key=True)
@@ -217,11 +250,21 @@ def register(app):
     @app.post("/api/v1/auth/password-reset/request")
     def password_reset_request():
         email=str((request.get_json() or {}).get("email","")).strip().lower()
+        if not os.getenv("SMTP_HOST") or not os.getenv("SMTP_FROM"):
+            current_app.logger.error("Password reset requested but SMTP delivery is not configured.")
+            return jsonify(error="password_reset_delivery_unavailable"),503
         u=User.query.filter_by(email=email).first()
         if not u:return jsonify(status="accepted")
+        PasswordResetToken.query.filter_by(user_id=u.id,used=False).update({"used":True})
         t=PasswordResetToken(user_id=u.id,token=token_urlsafe(32),expires_at=now()+timedelta(hours=1))
         db.session.add(t);db.session.commit()
-        return jsonify(status="accepted",token=t.token if app.config.get("EXPOSE_RESET_TOKEN",True) else None)
+        try:
+            send_password_reset_email(u.email,t.token)
+        except (OSError,smtplib.SMTPException,ValueError):
+            current_app.logger.exception("Password reset email delivery failed.")
+            t.used=True;db.session.commit()
+            return jsonify(error="password_reset_delivery_unavailable"),503
+        return jsonify(status="accepted")
 
     @app.post("/api/v1/auth/password-reset/confirm")
     def password_reset_confirm():
@@ -238,32 +281,41 @@ def register(app):
     @login_required
     def teacher_dashboard():
         uid=request.current_user.id
-        offerings=CourseOffering.query.filter_by(teacher_id=uid).all()
+        offerings=[o for o in CourseOffering.query.filter_by(teacher_id=uid).all() if teacher_can_access_offering(o,uid)]
         oids=[x.id for x in offerings]
         students=Enrollment.query.filter(Enrollment.offering_id.in_(oids),Enrollment.status=="enrolled").count() if oids else 0
         assignments=Assignment.query.filter(Assignment.offering_id.in_(oids)).count() if oids else 0
         submissions=Submission.query.join(Assignment,Submission.assignment_id==Assignment.id).filter(Assignment.offering_id.in_(oids)).count() if oids else 0
-        return jsonify(courses=[row(x) for x in offerings],stats={"courses":len(offerings),"students":students,"assignments":assignments,"submissions":submissions})
+        courses=[]
+        for offering in offerings:
+            item=row(offering)
+            course=db.session.get(Course,offering.course_id)
+            department=db.session.get(Department,course.department_id) if course else None
+            item["course_code"]=course.code if course else ""
+            item["course_title"]=course.title if course else ""
+            item["institution_id"]=department.institution_id if department else None
+            courses.append(item)
+        return jsonify(courses=courses,stats={"courses":len(offerings),"students":students,"assignments":assignments,"submissions":submissions})
 
     @app.get("/api/v1/teacher/courses/<int:oid>/students")
     @login_required
     def teacher_students(oid):
         o=db.session.get(CourseOffering,oid)
-        if not o or o.teacher_id!=request.current_user.id:return jsonify(error="forbidden"),403
+        if not teacher_can_access_offering(o,request.current_user.id):return jsonify(error="forbidden"),403
         return jsonify(items=[row(x) for x in Enrollment.query.filter_by(offering_id=oid,status="enrolled").all()])
 
     @app.get("/api/v1/teacher/assignments/<int:aid>/submissions")
     @login_required
     def teacher_submissions(aid):
         a=db.session.get(Assignment,aid);o=db.session.get(CourseOffering,a.offering_id) if a else None
-        if not o or o.teacher_id!=request.current_user.id:return jsonify(error="forbidden"),403
+        if not teacher_can_access_offering(o,request.current_user.id):return jsonify(error="forbidden"),403
         return jsonify(items=[row(x) for x in Submission.query.filter_by(assignment_id=aid).order_by(Submission.submitted_at.desc()).all()])
 
     @app.get("/api/v1/teacher/attendance/<int:oid>")
     @login_required
     def teacher_attendance(oid):
         o=db.session.get(CourseOffering,oid)
-        if not o or o.teacher_id!=request.current_user.id:return jsonify(error="forbidden"),403
+        if not teacher_can_access_offering(o,request.current_user.id):return jsonify(error="forbidden"),403
         return jsonify(items=[row(x) for x in Attendance.query.filter_by(offering_id=oid).all()])
 
     @app.get("/api/v1/academic-calendar")
