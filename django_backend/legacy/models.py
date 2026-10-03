@@ -97,3 +97,107 @@ class Result(LegacyModel):
 class TimetableEntry(LegacyModel):
     id=models.IntegerField(primary_key=True); offering_id=models.IntegerField(); weekday=models.IntegerField(); start_time=models.CharField(max_length=10); end_time=models.CharField(max_length=10); room=models.CharField(max_length=100)
     class Meta(LegacyModel.Meta): db_table="timetable_entry"
+
+
+class Event(LegacyModel):
+    id=models.IntegerField(primary_key=True); institution_id=models.IntegerField(null=True); organizer_id=models.IntegerField(null=True); title=models.CharField(max_length=255); description=models.TextField(); starts_at=models.DateTimeField(null=True); ends_at=models.DateTimeField(null=True); location=models.CharField(max_length=255); event_type=models.CharField(max_length=60); capacity=models.IntegerField(null=True); created_at=models.DateTimeField()
+    class Meta(LegacyModel.Meta): db_table="event"
+class EventRegistration(LegacyModel):
+    id=models.IntegerField(primary_key=True); event_id=models.IntegerField(); user_id=models.IntegerField(); registered_at=models.DateTimeField()
+    class Meta(LegacyModel.Meta):
+        db_table="event_registration"; constraints=[models.UniqueConstraint(fields=["event_id","user_id"],name="uq_event_user")]
+class Club(LegacyModel):
+    id=models.IntegerField(primary_key=True); institution_id=models.IntegerField(); name=models.CharField(max_length=255); description=models.TextField(); logo_url=models.CharField(max_length=500)
+    class Meta(LegacyModel.Meta): db_table="club"
+class ClubMembership(LegacyModel):
+    id=models.IntegerField(primary_key=True); club_id=models.IntegerField(); user_id=models.IntegerField(); role=models.CharField(max_length=40)
+    class Meta(LegacyModel.Meta):
+        db_table="club_membership"; constraints=[models.UniqueConstraint(fields=["club_id","user_id"],name="uq_club_user")]
+class Document(LegacyModel):
+    id=models.IntegerField(primary_key=True); institution_id=models.IntegerField(null=True); owner_id=models.IntegerField(); title=models.CharField(max_length=255); category=models.CharField(max_length=80); url=models.CharField(max_length=500); created_at=models.DateTimeField()
+    class Meta(LegacyModel.Meta): db_table="document"
+class ServiceRequest(LegacyModel):
+    id=models.IntegerField(primary_key=True); user_id=models.IntegerField(); institution_id=models.IntegerField(null=True); request_type=models.CharField(max_length=100); details=models.TextField(); status=models.CharField(max_length=30); response=models.TextField(); created_at=models.DateTimeField()
+    class Meta(LegacyModel.Meta): db_table="service_request"
+class Fee(LegacyModel):
+    id=models.IntegerField(primary_key=True); student_id=models.IntegerField(); institution_id=models.IntegerField(null=True); title=models.CharField(max_length=255); amount=models.FloatField(); due_date=models.DateField(null=True); status=models.CharField(max_length=30)
+    class Meta(LegacyModel.Meta): db_table="fee"
+class Message(LegacyModel):
+    id=models.IntegerField(primary_key=True); sender_id=models.IntegerField(); recipient_id=models.IntegerField(); body=models.TextField(); read_at=models.DateTimeField(null=True); created_at=models.DateTimeField()
+    class Meta(LegacyModel.Meta): db_table="message"
+class Poll(LegacyModel):
+    id=models.IntegerField(primary_key=True); post_id=models.IntegerField(unique=True); question=models.CharField(max_length=500)
+    class Meta(LegacyModel.Meta): db_table="poll"
+class PollOption(LegacyModel):
+    id=models.IntegerField(primary_key=True); poll_id=models.IntegerField(); label=models.CharField(max_length=255); position=models.IntegerField()
+    class Meta(LegacyModel.Meta): db_table="poll_option"
+class PollVote(LegacyModel):
+    id=models.IntegerField(primary_key=True); option_id=models.IntegerField(); user_id=models.IntegerField()
+    class Meta(LegacyModel.Meta):
+        db_table="poll_vote"; constraints=[models.UniqueConstraint(fields=["option_id","user_id"],name="uq_poll_vote")]
+class PostAttachment(LegacyModel):
+    id=models.IntegerField(primary_key=True); post_id=models.IntegerField(); name=models.CharField(max_length=255); url=models.CharField(max_length=1000); mime_type=models.CharField(max_length=120)
+    class Meta(LegacyModel.Meta): db_table="post_attachment"
+class AcademicCalendarItem(LegacyModel):
+    id=models.IntegerField(primary_key=True); institution_id=models.IntegerField(); department_id=models.IntegerField(null=True); title=models.CharField(max_length=255); kind=models.CharField(max_length=60); starts_at=models.DateTimeField(null=True); ends_at=models.DateTimeField(null=True); description=models.TextField(); location=models.CharField(max_length=255); audience=models.CharField(max_length=80)
+    class Meta(LegacyModel.Meta): db_table="academic_calendar_item"
+class Announcement(LegacyModel):
+    id=models.IntegerField(primary_key=True); institution_id=models.IntegerField(); author_id=models.IntegerField(); title=models.CharField(max_length=255); body=models.TextField(); audience=models.CharField(max_length=50); created_at=models.DateTimeField()
+    class Meta(LegacyModel.Meta): db_table="announcement"
+class AnnouncementTarget(LegacyModel):
+    id=models.IntegerField(primary_key=True); announcement_id=models.IntegerField(); group_id=models.IntegerField()
+    class Meta(LegacyModel.Meta): db_table="announcement_target"
+class EventTicket(LegacyModel):
+    id=models.IntegerField(primary_key=True); event_id=models.IntegerField(); user_id=models.IntegerField(); code=models.CharField(max_length=160,unique=True); checked_in=models.BooleanField(); issued_at=models.DateTimeField()
+    class Meta(LegacyModel.Meta):
+        db_table="event_ticket"; constraints=[models.UniqueConstraint(fields=["event_id","user_id"],name="uq_event_ticket")]
+class Certificate(LegacyModel):
+    id=models.IntegerField(primary_key=True); event_id=models.IntegerField(); user_id=models.IntegerField(); certificate_no=models.CharField(max_length=160,unique=True); title=models.CharField(max_length=255); issued_at=models.DateTimeField()
+    class Meta(LegacyModel.Meta):
+        db_table="certificate"; constraints=[models.UniqueConstraint(fields=["event_id","user_id"],name="uq_event_certificate")]
+class StudentRequest(LegacyModel):
+    id=models.IntegerField(primary_key=True); user_id=models.IntegerField(); institution_id=models.IntegerField(null=True); request_type=models.CharField(max_length=100); details=models.TextField(); status=models.CharField(max_length=30); response=models.TextField(); tracking_no=models.CharField(max_length=80,unique=True); created_at=models.DateTimeField()
+    class Meta(LegacyModel.Meta): db_table="student_request"
+class CampusService(LegacyModel):
+    id=models.IntegerField(primary_key=True); institution_id=models.IntegerField(); kind=models.CharField(max_length=50); name=models.CharField(max_length=255); description=models.TextField(); location=models.CharField(max_length=255); contact=models.CharField(max_length=255); hours=models.CharField(max_length=255); status=models.CharField(max_length=30)
+    class Meta(LegacyModel.Meta): db_table="campus_service"
+class LostFoundItem(LegacyModel):
+    id=models.IntegerField(primary_key=True); institution_id=models.IntegerField(); reporter_id=models.IntegerField(); item_type=models.CharField(max_length=30); title=models.CharField(max_length=255); description=models.TextField(); location=models.CharField(max_length=255); contact=models.CharField(max_length=255); status=models.CharField(max_length=30); created_at=models.DateTimeField()
+    class Meta(LegacyModel.Meta): db_table="lost_found_item"
+class EmergencyContact(LegacyModel):
+    id=models.IntegerField(primary_key=True); institution_id=models.IntegerField(); name=models.CharField(max_length=255); phone=models.CharField(max_length=80); category=models.CharField(max_length=80); location=models.CharField(max_length=255)
+    class Meta(LegacyModel.Meta): db_table="emergency_contact"
+class BusRoute(LegacyModel):
+    id=models.IntegerField(primary_key=True); institution_id=models.IntegerField(); name=models.CharField(max_length=255); stops=models.TextField(); departure_times=models.TextField(); active=models.BooleanField()
+    class Meta(LegacyModel.Meta): db_table="bus_route"
+class HostelRoom(LegacyModel):
+    id=models.IntegerField(primary_key=True); institution_id=models.IntegerField(); building=models.CharField(max_length=120); room_no=models.CharField(max_length=50); capacity=models.IntegerField(); status=models.CharField(max_length=30); occupant_id=models.IntegerField(null=True)
+    class Meta(LegacyModel.Meta): db_table="hostel_room"
+class LibraryItem(LegacyModel):
+    id=models.IntegerField(primary_key=True); institution_id=models.IntegerField(); title=models.CharField(max_length=255); author=models.CharField(max_length=255); isbn=models.CharField(max_length=80); category=models.CharField(max_length=120); copies=models.IntegerField(); available_copies=models.IntegerField()
+    class Meta(LegacyModel.Meta): db_table="library_item"
+class LibraryLoan(LegacyModel):
+    id=models.IntegerField(primary_key=True); item_id=models.IntegerField(); user_id=models.IntegerField(); borrowed_at=models.DateTimeField(); due_at=models.DateTimeField(null=True); returned_at=models.DateTimeField(null=True)
+    class Meta(LegacyModel.Meta): db_table="library_loan"
+class CafeteriaItem(LegacyModel):
+    id=models.IntegerField(primary_key=True); institution_id=models.IntegerField(); name=models.CharField(max_length=255); category=models.CharField(max_length=100); price=models.FloatField(); available=models.BooleanField()
+    class Meta(LegacyModel.Meta): db_table="cafeteria_item"
+class VerificationToken(LegacyModel):
+    id=models.IntegerField(primary_key=True); user_id=models.IntegerField(); token=models.CharField(max_length=180,unique=True); purpose=models.CharField(max_length=40); expires_at=models.DateTimeField(); used=models.BooleanField()
+    class Meta(LegacyModel.Meta): db_table="verification_token"
+class PasswordResetToken(LegacyModel):
+    id=models.IntegerField(primary_key=True); user_id=models.IntegerField(); token=models.CharField(max_length=180,unique=True); expires_at=models.DateTimeField(); used=models.BooleanField()
+    class Meta(LegacyModel.Meta): db_table="password_reset_token"
+class CourseMaterial(LegacyModel):
+    id=models.IntegerField(primary_key=True); offering_id=models.IntegerField(); teacher_id=models.IntegerField(); title=models.CharField(max_length=255); description=models.TextField(); url=models.CharField(max_length=1000); mime_type=models.CharField(max_length=120); created_at=models.DateTimeField()
+    class Meta(LegacyModel.Meta): db_table="course_material"
+class PushDevice(LegacyModel):
+    id=models.IntegerField(primary_key=True); user_id=models.IntegerField(); token=models.CharField(max_length=500,unique=True); platform=models.CharField(max_length=30); active=models.BooleanField(); created_at=models.DateTimeField()
+    class Meta(LegacyModel.Meta): db_table="push_device"
+class UserVerification(LegacyModel):
+    id=models.IntegerField(primary_key=True); user_id=models.IntegerField(unique=True); verified=models.BooleanField(); verified_at=models.DateTimeField(null=True)
+    class Meta(LegacyModel.Meta): db_table="user_verification"
+class AnnouncementRead(LegacyModel):
+    id=models.IntegerField(primary_key=True); announcement_id=models.IntegerField(); user_id=models.IntegerField(); read_at=models.DateTimeField()
+    class Meta(LegacyModel.Meta):
+        db_table="announcement_read"; constraints=[models.UniqueConstraint(fields=["announcement_id","user_id"],name="uq_announcement_read")]
