@@ -48,6 +48,7 @@ export default function App(){
 
  const items=data?.items||[];
  return <SafeAreaView style={s.safe}>
+  <View style={{flex:1}}>
   <View style={s.header}><View><Text style={s.title}>{screen}</Text>{institution&&adminTabs.some(x=>x[0]===screen)&&<Text style={s.muted}>{institution.name} · {data?.role||"admin"}</Text>}</View><TouchableOpacity onPress={()=>load(screen)}><Text style={s.refresh}>↻</Text></TouchableOpacity></View>
   {screen==="Overview"&&<ScrollView style={s.body}><Text style={s.h2}>{institution?.name}</Text><View style={s.grid}>{Object.entries(data?.counts||{}).map(([k,v])=><Card key={k} t={k.replaceAll("_"," ")} v={v}/>)}</View><Text style={s.h2}>Permissions</Text><Text style={s.muted}>{(data?.permissions||[]).join(" · ")}</Text></ScrollView>}
   {screen==="Institution"&&<ScrollView style={s.body}><Text style={s.h2}>Edit university</Text><Field label="Name" value={form.name??institution?.name??""} onChangeText={v=>setField("name",v)}/><Field label="Slug" value={form.slug??institution?.slug??""} onChangeText={v=>setField("slug",v)}/><Field label="Type" value={form.kind??institution?.kind??""} onChangeText={v=>setField("kind",v)}/><Field label="Address" value={form.address??institution?.address??""} onChangeText={v=>setField("address",v)}/><Field label="Website" value={form.website??institution?.website??""} onChangeText={v=>setField("website",v)}/><Field label="Description" value={form.description??institution?.description??""} onChangeText={v=>setField("description",v)}/><TouchableOpacity style={s.btn} onPress={saveInstitution}><Text style={s.btnText}>Save institution</Text></TouchableOpacity></ScrollView>}
@@ -57,6 +58,7 @@ export default function App(){
   <ScrollView horizontal style={s.tabs}>{userTabs.map(x=><TouchableOpacity key={x} style={s.tab} onPress={()=>load(x)}><Text>{x}</Text></TouchableOpacity>)}<TouchableOpacity style={s.tab} onPress={()=>load("Admin")}><Text>University Admin</Text></TouchableOpacity></ScrollView>
   {adminTabs.some(x=>x[0]===screen)&&<ScrollView horizontal style={s.adminTabs}>{adminTabs.map(([label,key])=><TouchableOpacity key={label} style={s.tab} onPress={()=>load(label,institution?.id)}><Text>{label}</Text></TouchableOpacity>)}</ScrollView>}
   {admins.length>1&&screen!=="Home"&&<ScrollView horizontal style={s.adminTabs}>{admins.map(a=><TouchableOpacity key={a.id} style={s.tab} onPress={()=>{setInstitution(a);setScreen("Overview");loadAdmin("overview",a.id)}}><Text>{a.name}</Text></TouchableOpacity>)}</ScrollView>}
+  </View>
  </SafeAreaView>
 }
 function AdminRow({x,screen,iid,mutate,reload}){
