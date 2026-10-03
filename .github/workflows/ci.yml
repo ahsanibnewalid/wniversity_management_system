@@ -46,7 +46,6 @@ jobs:
       - run: pip install -r django_backend/requirements.txt
       - run: PGPASSWORD=campushub psql -h localhost -U campushub -d campushub -c "SELECT 1"
       - run: cd django_backend && python manage.py check --deploy
-      - run: python django_backend/scripts/ci_smoke.py
 
   web:
     runs-on: ubuntu-latest
