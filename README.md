@@ -1,62 +1,111 @@
-# CampusHub
+# CampusHub 🎓
 
-API-first University Management + Community platform.
+<p align="center"><strong>University ERP + Learning Platform + Campus Social Network + Messaging + Campus Services</strong></p>
+
+<p align="center"><img alt="Django" src="https://img.shields.io/badge/Backend-Django-092E20?logo=django&logoColor=white"> <img alt="PostgreSQL" src="https://img.shields.io/badge/Database-PostgreSQL-4169E1?logo=postgresql&logoColor=white"> <img alt="Web" src="https://img.shields.io/badge/Web-Responsive-2ea44f"> <img alt="Mobile" src="https://img.shields.io/badge/Mobile-Expo%20%2F%20React%20Native-000020?logo=expo&logoColor=white"></p>
+
+## Overview
+
+CampusHub is an API-first university platform combining academic management, campus communication, community interaction, and student services in one system.
+
+## Product Vision
+
+**CampusHub = University ERP + Learning Management + Student Portal + Parent Portal + Campus Social Network + Messaging + Campus Services + Careers + Institutional Administration**
+
+## Core Areas
+
+### 🎓 Academic
+- Institutions, departments, programs, semesters, sessions, and academic years
+- Courses, offerings, enrollment, attendance, assignments, submissions, exams, results, and timetables
+- Academic documents and certificates
+
+### 🏫 Administration
+- Institution and department management
+- Role-based access and tenant-aware permissions
+- Membership and approval workflows
+- Announcements, documents, verification, and password reset
+- Platform administration
+
+### 🌐 Campus Social
+- Social-style home feed
+- Communities and groups
+- Posts, comments, reactions, polls, notifications, and discovery
+
+### 💬 Communication
+- Direct and group conversations
+- Course, department, university, and support channels
+- Threads, reactions, search, unread state, mute, archive, pin, reporting, and moderation
+
+### 🚌 Campus Life
+- Events and registrations
+- Clubs and communities
+- Campus services
+- Lost & found
+- Emergency contacts
+- Bus routes, hostel, library, and cafeteria
+
+### 💼 Careers & Collaboration
+The platform is designed to expand toward internships, jobs, recruiter communication, university/company collaboration, and research workflows.
 
 ## Architecture
-- backend/ — Flask API, database models, routes and services
-- web/ — web client foundation
-- mobile/ — React Native/Expo client foundation
-- tests/ — automated tests
-- PostgreSQL on Render; SQLite for local development
 
-## Product workflow
-Register → complete profile → apply to institution with student ID, department, program, session and academic year → institution admin reviews → approved membership → institution, department, session and academic-year communities.
+    CampusHub
+       ├── Django API
+       ├── Responsive Web Client
+       ├── Expo / React Native Client
+       └── PostgreSQL
 
-## Community hierarchy
-Institution → Department → Session → Academic Year.
+The Django compatibility layer preserves the existing `/api/v1` API contract and legacy PostgreSQL table structure where compatibility is required.
 
-Groups support posts, questions, comments and reactions. The permission model is designed for institution owners/admins/principals, department chairmen/admins, media managers and class representatives.
+## Local Development
 
-## Local
-python -m venv .venv
-pip install -r requirements.txt
-python -c "from backend.app import app; app.run(debug=True)"
+### Backend
 
-Health: http://127.0.0.1:5000/healthz
+    cd django_backend
+    python -m venv .venv
+    source .venv/bin/activate
+    pip install -r requirements.txt
+    python manage.py check
+    python manage.py runserver
 
-## Render
-Build: pip install -r requirements.txt
-Start: gunicorn "backend.app:create_app()" --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120
-Health check: /healthz
+### Mobile
 
-Password reset email delivery requires `SMTP_HOST` and `SMTP_FROM` to be set on the service. Set `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and the TLS options to match the provider. Reset credentials are sent only by email and are never included in API responses; requests return `503 password_reset_delivery_unavailable` when delivery is not configured or fails.
+    cd mobile
+    npm install
+    npx expo start
 
-Set `PLATFORM_ADMIN_EMAILS` in Render's environment settings to a comma-separated list of trusted operator email addresses to enable the centralized platform administration console. Keep this list limited to authorized CampusHub operators; institution roles do not grant platform-wide access. Platform administrators can monitor tenant counts, search users and memberships, add members to universities, assign tenant roles, suspend memberships, and transfer institution ownership. Remove a platform operator by removing their email from `PLATFORM_ADMIN_EMAILS`.
+For a native Android build:
 
-Platform administration endpoints are rooted at `/api/v1/platform/admin`. The role is controlled by this server-side allowlist and cannot be granted by users or institution administrators.
+    npx expo prebuild
+    cd android
+    ./gradlew assembleDebug
 
-## Communication Center
+## Production
 
-The web and mobile clients use `/api/v1/communications` for tenant-scoped direct chats, group conversations, course discussions, department and university channels, and student-support requests. Course channels can be configured for teacher-only official posts; university announcement channels are restricted to institution managers. Existing institution announcements support `all`, `students`, `teachers`, `staff`, and `admins` audiences.
+The repository includes production-oriented Django/Gunicorn and Render configuration with secure settings, PostgreSQL support, CORS configuration, HTTPS hardening, and SMTP support for verification/password-reset email.
 
-Communication features include threaded replies, link attachments, message reactions, message search, unread counts/read timestamps, per-user mute/archive/pin settings, user blocking, message reports, and manager/teacher moderation queues. Muted conversations do not create new in-app message notifications. Conversation access is removed when the user's institution membership is suspended.
+**Database compatibility:** do not run destructive Django migrations against an existing production database without a planned migration and backup strategy.
 
-Attachments are currently links to externally hosted files; CampusHub does not yet upload or store file contents. In-app notifications are supported, but email/push delivery for new messages, parent/company accounts, and configurable retention schedules are not implemented. Official posts are immutable through the current API and include author/timestamp metadata; agree institution retention rules before adding automated deletion.
+## Testing
 
-The communication tables are created with the application's existing SQLAlchemy `create_all` startup path. New deployments therefore need no new package or environment setting.
+Automated tests and CI checks cover backend behavior, Django deployment checks, and web JavaScript validation. Staging/live smoke checks are available under `django_backend/scripts/smoke.sh`.
 
-## Mobile
-cd mobile
-npm install
-npx expo start
+## Security
 
-When native Android/iOS projects are needed:
-npx expo prebuild
-cd android
-gradlew assembleDebug
+Authentication, bearer-token support, role-based permissions, tenant-aware authorization, verification/password-reset flows, moderation controls, and production security settings are part of the platform architecture.
 
-The resulting debug APK is generated under android/app/build/outputs/apk/debug/.
+## Payments
 
+CampusHub intentionally does **not** implement payment gateways or transaction processing. Fee records may exist as informational data, but checkout, bank integration, payment webhooks, and transaction processing are outside the current scope.
 
-## Implementation status
-The full-platform implementation is being expanded across the API, web and mobile clients.
+## Project Status
+
+🚧 **Active development**
+
+## Contributing
+
+Issues, feature proposals, documentation improvements, and pull requests are welcome. Please preserve the `/api/v1` compatibility contract when changing backend behavior.
+
+## License
+
+See the repository license file for applicable terms.
