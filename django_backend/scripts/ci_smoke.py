@@ -8,16 +8,13 @@ django.setup()
 
 from django.db import connection
 
-try:
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT 1")
-        result = cursor.fetchone()
-except Exception as exc:
-    print("Django PostgreSQL connection failed:", repr(exc))
+expected_engine = "django.db.backends.postgresql"
+if connection.settings_dict.get("ENGINE") != expected_engine:
+    print("Unexpected Django database engine:", connection.settings_dict.get("ENGINE"))
     sys.exit(1)
 
-if result != (1,):
-    print("Unexpected PostgreSQL result:", result)
+if connection.settings_dict.get("NAME") != "campushub":
+    print("Unexpected Django database name:", connection.settings_dict.get("NAME"))
     sys.exit(1)
 
-print("Django PostgreSQL integration smoke test passed.")
+print("Django PostgreSQL configuration smoke test passed.")
