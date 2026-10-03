@@ -6,7 +6,7 @@ from rest_framework.permissions import AllowAny,IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from werkzeug.security import generate_password_hash,check_password_hash
-from secrets import token_urlsafe
+from secrets import token_urlsafe\nfrom django.utils import timezone
 
 def healthz(request):
     try:
@@ -20,7 +20,7 @@ def register(request):
     d=request.data or {}; email=str(d.get("email","")).strip().lower(); password=str(d.get("password","")); name=str(d.get("full_name","")).strip(); username=str(d.get("username","")).strip().lower()
     if not all((email,password,name,username)): return Response({"error":"email,password,full_name,username_required"},status=400)
     if User.objects.filter(email=email).exists() or UserProfile.objects.filter(username=username).exists(): return Response({"error":"email_or_username_exists"},status=409)
-    u=User.objects.create(email=email,password_hash=generate_password_hash(password),created_at=None)
+    u=User.objects.create(email=email,password_hash=generate_password_hash(password),created_at=timezone.now())
     UserProfile.objects.create(user_id=u.id,full_name=name,username=username,is_complete=False)
     return Response({"user_id":u.id,"profile_complete":False},status=201)
 
