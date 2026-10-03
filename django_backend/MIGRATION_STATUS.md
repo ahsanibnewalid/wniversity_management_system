@@ -1,44 +1,37 @@
 # Django migration status
 
-Branch: django-migration
+Branch: `django-migration`
 
-## Implemented
+## Implementation status: COMPLETE
 
-- Django 5.2 + Django REST Framework foundation.
-- PostgreSQL configuration through the existing DATABASE_URL.
-- Compatibility ORM for the current CampusHub tables with managed = False.
-- Existing integer primary keys and table names preserved.
-- Existing bearer token table used directly.
-- Existing Werkzeug password hashes accepted directly.
-- Auth/register/login/me/logout/logout-all compatibility.
-- Institution listing/creation/join and current memberships.
-- Profile read/update.
-- /healthz.
+The Django/DRF compatibility backend is implemented alongside the existing Flask backend.
 
-## Legacy model inventory captured
+### Included
+- PostgreSQL compatibility models for the existing tables, using `managed = False`.
+- Existing integer IDs/table names preserved.
+- Existing bearer-token authentication.
+- Existing Werkzeug password hashes.
+- Authentication, verification and password recovery.
+- Institutions, memberships, departments, sessions, years and administration.
+- Faculties, programs, courses, offerings, enrollment, attendance, assignments, submissions, grading, exams, results, transcripts and timetables.
+- Community groups, membership, posts, comments, reactions, attachments, polls and votes.
+- Messages, profiles, search and dashboard.
+- Events, registrations, tickets, check-in, certificates and clubs.
+- Documents, service requests, fees, campus services, lost/found, emergency contacts, buses, hostel, library and cafeteria.
+- Notifications, announcements and push devices.
+- Student ID and transcript PDF endpoints.
+- `/api/v1` route compatibility layer.
+- CI validation for Python compilation and Django system checks.
 
-Accounts: User, UserProfile, AuthToken, VerificationToken, PasswordResetToken, UserVerification, PushDevice.
+### Database safety
+No Django migration has been run against the existing PostgreSQL schema. Legacy models are unmanaged so this branch cannot accidentally create, alter or delete the existing CampusHub tables through Django migrations.
 
-Institution/academics: Institution, InstitutionMembership, Department, AcademicSession, AcademicYear, Faculty, Program, Semester, Course, CourseOffering, Enrollment, Attendance, Assignment, Submission, Exam, Result, TimetableEntry, CourseMaterial.
+### Validation
+The latest GitHub Actions run for this branch completed successfully:
+- Python compilation: PASS
+- Django `manage.py check`: PASS
 
-Community: Group, GroupMembership, Post, Comment, Reaction, Poll, PollOption, PollVote, PostAttachment.
+### Production cutover
+The code migration is complete. Production cutover is intentionally a separate deployment operation because it requires the real PostgreSQL `DATABASE_URL`, a verified database backup, staging smoke tests against a copy of the production database, and then switching the API process from Flask to Django.
 
-Communication/platform: Message, Notification, Announcement, AnnouncementTarget, AnnouncementRead.
-
-Events: Event, EventRegistration, EventTicket, Certificate, Club, ClubMembership.
-
-Campus/services: Document, ServiceRequest, Fee, StudentRequest, CampusService, LostFoundItem, EmergencyContact, BusRoute, HostelRoom, LibraryItem, LibraryLoan, CafeteriaItem, AcademicCalendarItem.
-
-## Still to migrate
-
-The remaining Flask endpoint behavior is intentionally not deleted or silently replaced. Academic, community, event/campus, notification, PDF, search, teacher, and institution-admin endpoints remain on the Flask implementation until their Django equivalents are validated.
-
-## Cutover rule
-
-Do not point production at this branch yet. The safe sequence is:
-1. Validate against a PostgreSQL backup/staging database.
-2. Port the remaining endpoints while keeping response JSON/status codes unchanged.
-3. Run web/mobile integration tests.
-4. Cut production traffic to Django.
-5. Remove Flask only after all API routes have Django coverage.
-6. Then change managed = False models to Django-owned models and introduce normal migrations.
+Do not run `python manage.py migrate` against the legacy database yet.
