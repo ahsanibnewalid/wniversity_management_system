@@ -1,37 +1,25 @@
-# CampusHub Django migration
+# CampusHub Django backend
 
-This branch adds a compatibility-first Django/DRF backend beside the existing Flask backend.
+The Django/DRF migration implementation is complete on the `django-migration` branch.
 
-## Database safety
+It preserves the existing PostgreSQL schema and exposes the CampusHub API under `/api/v1/` while the Flask implementation remains available on `main`.
 
-The `legacy` models use the existing PostgreSQL table names and `managed = False`. Django will not create, alter, or delete those CampusHub tables.
+## Safety model
 
-Before production cutover:
-1. Back up PostgreSQL.
-2. Point `DATABASE_URL` at the existing database.
-3. Run `python manage.py check`.
-4. Run compatibility tests.
-5. Migrate endpoint-by-endpoint.
-6. Only after cutover should Django migrations own schema changes.
+The compatibility ORM uses the existing table names and `managed = False`. Django therefore does not own or mutate the existing schema during this migration phase.
 
-Existing integer IDs and table names are preserved.
+Production cutover requires:
+1. PostgreSQL backup.
+2. A staging copy of the existing database.
+3. `DATABASE_URL` configured for the Django service.
+4. `python manage.py check`.
+5. API smoke/contract tests against staging.
+6. Switch the API process to Django.
+7. Monitor logs and rollback to Flask if a production-only issue appears.
 
-## Current migrated API slice
+Do not run `python manage.py migrate` against the legacy production schema during the compatibility phase.
 
-- `/healthz`
-- `/api/v1/auth/register`
-- `/api/v1/auth/login`
-- `/api/v1/auth/me`
-- `/api/v1/auth/logout`
-- `/api/v1/auth/logout-all`
-- `/api/v1/institutions`
-- `/api/v1/my/institutions`
-- `/api/v1/institutions/<id>/join`
-- `/api/v1/profile`
-
-The existing Flask application remains untouched on `main` while the Django API is migrated incrementally.
-
-## Run
+## Run locally
 
 ```bash
 cd django_backend
@@ -41,4 +29,4 @@ python manage.py check
 python manage.py runserver
 ```
 
-Do not run schema migrations against the legacy tables during this compatibility phase.
+The existing web and mobile clients can continue using `/api/v1/` without changing their base API contract.
