@@ -30,7 +30,7 @@ def register(request):
 def login(request):
     d=request.data or {}; u=User.objects.filter(email=str(d.get("email","")).strip().lower()).first()
     if not u or not check_password_hash(u.password_hash,str(d.get("password",""))): return Response({"error":"invalid_credentials"},status=401)
-    t=AuthToken.objects.create(token=token_urlsafe(48),user_id=u.id,created_at=None,revoked=False)
+    t=AuthToken.objects.create(token=token_urlsafe(48),user_id=u.id,created_at=timezone.now(),revoked=False)
     p=UserProfile.objects.filter(user_id=u.id).first()
     return Response({"access_token":t.token,"token_type":"Bearer","user_id":u.id,"profile_complete":bool(p and p.is_complete)})
 
