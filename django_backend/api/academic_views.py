@@ -31,7 +31,7 @@ def teacher(oid,uid):
 # ---------- Academics ----------
 
 @api_view(["GET","POST"])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def faculties(request,iid):
     if request.method=="GET":
         return Response({"items":rows(m.Faculty.objects.filter(institution_id=iid))})
@@ -41,7 +41,7 @@ def faculties(request,iid):
     return Response(row(x),201)
 
 @api_view(["GET","POST"])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def programs(request,did):
     dep=m.Department.objects.filter(pk=did).first()
     if not dep:return Response({"error":"department_not_found"},404)
@@ -51,7 +51,7 @@ def programs(request,did):
     return Response(row(x),201)
 
 @api_view(["GET","POST"])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def courses(request,did):
     dep=m.Department.objects.filter(pk=did).first()
     if not dep:return Response({"error":"department_not_found"},404)
@@ -61,7 +61,7 @@ def courses(request,did):
     return Response(row(x),201)
 
 @api_view(["GET","POST"])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def offerings(request,cid):
     course=m.Course.objects.filter(pk=cid).first()
     if not course:return Response({"error":"course_not_found"},404)
