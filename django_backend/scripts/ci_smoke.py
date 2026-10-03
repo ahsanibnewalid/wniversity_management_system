@@ -8,7 +8,7 @@ django.setup()
 
 from django.test import Client
 
-response = Client().get("/healthz")
+response = Client(HTTP_HOST="localhost").get("/healthz")
 if response.status_code != 200:
     print("healthz failed:", response.status_code, response.content.decode())
     sys.exit(1)
