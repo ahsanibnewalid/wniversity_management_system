@@ -6,7 +6,8 @@ from rest_framework.permissions import AllowAny,IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from werkzeug.security import generate_password_hash,check_password_hash
-from secrets import token_urlsafe\nfrom django.utils import timezone
+from secrets import token_urlsafe
+from django.utils import timezone
 
 def healthz(request):
     try:
