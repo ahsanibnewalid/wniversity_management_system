@@ -1,0 +1,55 @@
+name: Merge bundled CampusHub project
+
+on:
+  push:
+    branches:
+      - 'merge-campus-hub-zip'
+
+permissions:
+  contents: write
+
+jobs:
+  extract-and-commit:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract project ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/campushub-extract
+          mkdir -p /tmp/campushub-extract
+          unzip -q -o CampusHub-local-project.zip -d /tmp/campushub-extract
+          test -d /tmp/campushub-extract/wniversity_management_system
+          rsync -a /tmp/campushub-extract/wniversity_management_system/ ./
+          rm -rf /tmp/campushub-extract
+
+      - name: Validate extracted project
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q backend django_backend tests app.py
+          node --check web/app.js
+          node --check web/postlogin.js
+          node --check mobile/App.js
+          test -f django_backend/config/settings.py
+          test -f render.yaml
+
+      - name: Commit extracted project
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'No changes to commit.'
+            exit 0
+          fi
+          git commit -m 'Merge CampusHub local project ZIP [skip ci]'
+          git push origin HEAD:merge-campus-hub-zip
