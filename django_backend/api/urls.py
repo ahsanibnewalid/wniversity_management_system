@@ -1,12 +1,12 @@
 from django.urls import path
-from .views import healthz,register,login,me,logout,logout_all,institutions,my_institutions,join_institution,profile
+from .views import healthz,register,login,me,logout,logout_all,institutions,my_institutions,join_institution,profile,verification_request,verification_confirm,password_reset_request,password_reset_confirm
 from .academic_views import faculties,programs,courses,offerings,enroll,my_enrollments,attendance,my_attendance,assignments,submit_assignment,grade_submission,exams,results,transcript,student_results,timetable,my_timetable,semester_results,course_registration,academic_summary,assignment_mine,offering_submissions
 from .life_views import events,register_event,clubs,join_club,documents,service_requests,fees,fee_detail,messages,read_message,user_profile,search,dashboard,notifications,notification_read,change_password,announcements,event_ticket,checkin,certificate,certificates,campus_services,lost_found,emergency_contacts,bus_routes,hostel,library_items,my_loans,borrow,return_loan,cafeteria,materials,add_material,academic_calendar,advanced_request,advanced_requests,register_push,unregister_push,verification,confirm_verification,announcement_read
 from .community_views import institution_groups,groups,join_group,posts,comment,feed,reaction,attachments,polls,vote
 from .admin_views import overview,institution_admin,members,invite,departments,sessions,years,admin_groups,requests,permissions,faculties as admin_faculties,admin_programs,admin_courses,admin_events,admin_clubs,admin_service_requests,admin_fees
 
 urlpatterns=[
- path("auth/register",register),path("auth/login",login),path("auth/me",me),path("auth/logout",logout),path("auth/logout-all",logout_all),path("auth/change-password",change_password),
+ path("auth/register",register),path("auth/login",login),path("auth/me",me),path("auth/logout",logout),path("auth/logout-all",logout_all),path("auth/change-password",change_password),path("auth/verification/request",verification_request),path("auth/verification/confirm",verification_confirm),path("auth/password-reset/request",password_reset_request),path("auth/password-reset/confirm",password_reset_confirm),
  path("institutions",institutions),path("my/institutions",my_institutions),path("institutions/<int:iid>/join",join_institution),path("profile",profile),
  path("institutions/<int:iid>/faculties",faculties),path("departments/<int:did>/programs",programs),path("departments/<int:did>/courses",courses),path("courses/<int:cid>/offerings",offerings),
  path("offerings/<int:oid>/enroll",enroll),path("me/enrollments",my_enrollments),path("offerings/<int:oid>/attendance",attendance),path("me/attendance",my_attendance),
