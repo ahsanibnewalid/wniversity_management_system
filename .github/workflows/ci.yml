@@ -13,6 +13,40 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements.txt
       - run: PYTHONPATH=. pytest -q
+
+  django:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: campushub
+          POSTGRES_USER: campushub
+          POSTGRES_PASSWORD: campushub
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U campushub -d campushub"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://campushub:campushub@localhost:5432/campushub
+      DATABASE_SSL_REQUIRE: "false"
+      SECRET_KEY: ci-test-secret
+      DEBUG: "false"
+      ALLOWED_HOSTS: localhost,127.0.0.1
+      CORS_ALLOWED_ORIGINS: ""
+      EMAIL_BACKEND: django.core.mail.backends.locmem.EmailBackend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r django_backend/requirements.txt
+      - run: PGPASSWORD=campushub psql -h localhost -U campushub -d campushub -c "SELECT 1"
+      - run: cd django_backend && python manage.py check --deploy
+
   web:
     runs-on: ubuntu-latest
     steps:
