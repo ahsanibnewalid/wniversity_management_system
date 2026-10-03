@@ -8,6 +8,7 @@ from rest_framework import status
 from werkzeug.security import generate_password_hash,check_password_hash
 from secrets import token_urlsafe
 from django.utils import timezone
+from django.core.mail import send_mail
 
 def healthz(request):
     try:
@@ -114,7 +115,11 @@ def verification_request(request):
     if not u:return Response({"status":"sent"})
     from django.utils import timezone
     x=VerificationToken.objects.create(user_id=u.id,token=token_urlsafe(32),purpose="email",expires_at=timezone.now()+timezone.timedelta(minutes=30),used=False)
-    return Response({"status":"sent","token":x.token})
+    send_mail("CampusHub email verification", f"Use this verification token to confirm your email: {x.token}", None, [u.email], fail_silently=False)
+    payload={"status":"sent"}
+    if getattr(__import__("django.conf", fromlist=["settings"]).settings, "DEBUG", False):
+        payload["token"]=x.token
+    return Response(payload)
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -136,7 +141,11 @@ def password_reset_request(request):
     if not u:return Response({"status":"sent"})
     from django.utils import timezone
     x=PasswordResetToken.objects.create(user_id=u.id,token=token_urlsafe(32),expires_at=timezone.now()+timezone.timedelta(minutes=30),used=False)
-    return Response({"status":"sent","token":x.token})
+    send_mail("CampusHub password reset", f"Use this password-reset token to continue: {x.token}", None, [u.email], fail_silently=False)
+    payload={"status":"sent"}
+    if getattr(__import__("django.conf", fromlist=["settings"]).settings, "DEBUG", False):
+        payload["token"]=x.token
+    return Response(payload)
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
