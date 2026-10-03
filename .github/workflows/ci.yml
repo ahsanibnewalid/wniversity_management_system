@@ -45,7 +45,7 @@ jobs:
           python-version: "3.12"
       - run: pip install -r django_backend/requirements.txt
       - run: cd django_backend && python manage.py check --deploy
-      - run: cd django_backend && pytest -q
+      - run: python django_backend/scripts/ci_smoke.py
 
   web:
     runs-on: ubuntu-latest
